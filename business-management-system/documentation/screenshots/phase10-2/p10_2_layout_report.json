@@ -1,0 +1,69 @@
+{
+  "slipCount": 1,
+  "totalGridSlots": 8,
+  "headerText": "SHIVAM ENTERPRISE | Phone: 9725543989 | PACKING SLIP",
+  "headerRowCount": 4,
+  "headerSpacerHeight": 19.19,
+  "headerSpacerIsEmpty": true,
+  "headerBoldElements": 4,
+  "titleUnderlined": true,
+  "qualityRowText": "Quality :",
+  "qualityRowColSpan": 1,
+  "qualityRowFullWidth": true,
+  "warningText": "Please do not mix different Lot No.",
+  "warningFullWidth": true,
+  "headerSeparatedFromBody": true,
+  "previewZoom": 1.6,
+  "outerBorder": "0.625px solid rgb(0, 0, 0)",
+  "rowCount": 5,
+  "pairs": [
+    {
+      "row": 1,
+      "leftCellText": "Box No : 101",
+      "rightCellText": "Cheese : 24",
+      "sameRow": true,
+      "topDelta": 0,
+      "bottomDelta": 0,
+      "dividerContinuous": true,
+      "equalWidth": true,
+      "leftWidth": 281.7,
+      "rightWidth": 281.7
+    },
+    {
+      "row": 2,
+      "leftCellText": "Lot No : LOT-80/72-MP",
+      "rightCellText": "Gross Weight : 30.620",
+      "sameRow": true,
+      "topDelta": 0,
+      "bottomDelta": 0,
+      "dividerContinuous": true,
+      "equalWidth": true,
+      "leftWidth": 281.7,
+      "rightWidth": 281.7
+    },
+    {
+      "row": 3,
+      "leftCellText": "Shade No :",
+      "rightCellText": "Tare Weight : 2.160",
+      "sameRow": true,
+      "topDelta": 0,
+      "bottomDelta": 0,
+      "dividerContinuous": true,
+      "equalWidth": true,
+      "leftWidth": 281.7,
+      "rightWidth": 281.7
+    },
+    {
+      "row": 4,
+      "leftCellText": "Grade : Fresh A",
+      "rightCellText": "Net Weight : 28.460",
+      "sameRow": true,
+      "topDelta": 0,
+      "bottomDelta": 0,
+      "dividerContinuous": true,
+      "equalWidth": true,
+      "leftWidth": 281.7,
+      "rightWidth": 281.7
+    }
+  ]
+}

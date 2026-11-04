@@ -1,0 +1,13 @@
+{
+  "name": "sivam-bms-workspace",
+  "version": "1.0.0",
+  "description": "Root workspace runner for BMS",
+  "private": true,
+  "scripts": {
+    "install:all": "npm --prefix business-management-system/backend install && npm --prefix business-management-system/frontend install",
+    "dev:backend": "npm --prefix business-management-system/backend run dev",
+    "dev:frontend": "npm --prefix business-management-system/frontend run dev",
+    "test:db": "npm --prefix business-management-system/backend run test:db"
+  }
+}
+

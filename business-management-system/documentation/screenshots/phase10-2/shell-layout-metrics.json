@@ -1,0 +1,898 @@
+[
+  {
+    "width": 1366,
+    "label": "dashboard",
+    "route": "/",
+    "metrics": {
+      "viewport": 1366,
+      "docScrollWidth": 1366,
+      "nav": {
+        "row": {
+          "x": 0,
+          "w": 1366,
+          "right": 1366
+        },
+        "rowPadLeft": "20px",
+        "rowPadRight": "20px",
+        "left": {
+          "x": 20,
+          "w": 877.7,
+          "right": 897.7
+        },
+        "right": {
+          "x": 909.7,
+          "w": 436.3,
+          "right": 1346
+        },
+        "middleGap": 12,
+        "borderBottom": "1px solid rgb(30, 41, 59)",
+        "height": null
+      },
+      "footer": {
+        "row": {
+          "x": 0,
+          "w": 1366,
+          "right": 1366
+        },
+        "childrenGap": 345.2,
+        "height": 33
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "w": 1366,
+          "right": 1366
+        },
+        "padLeft": "20px",
+        "padRight": "20px",
+        "firstCard": {
+          "x": 20,
+          "w": 1326,
+          "right": 1346
+        }
+      },
+      "strip": null,
+      "bodyClasses": "bg-slate-50 text-slate-800 antialiased selection:bg-blue-500 selection:text-white"
+    }
+  },
+  {
+    "width": 1366,
+    "label": "entry",
+    "route": "/manufacturing/production-receive/entry",
+    "metrics": {
+      "viewport": 1366,
+      "docScrollWidth": 1366,
+      "nav": {
+        "row": {
+          "x": 0,
+          "w": 1366,
+          "right": 1366
+        },
+        "rowPadLeft": "20px",
+        "rowPadRight": "20px",
+        "left": {
+          "x": 20,
+          "w": 877.7,
+          "right": 897.7
+        },
+        "right": {
+          "x": 909.7,
+          "w": 436.3,
+          "right": 1346
+        },
+        "middleGap": 12,
+        "borderBottom": "1px solid rgb(30, 41, 59)",
+        "height": null
+      },
+      "footer": {
+        "row": {
+          "x": 0,
+          "w": 1366,
+          "right": 1366
+        },
+        "childrenGap": 345.2,
+        "height": 33
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "w": 1366,
+          "right": 1366
+        },
+        "padLeft": "20px",
+        "padRight": "20px",
+        "firstCard": {
+          "x": 20,
+          "w": 1326,
+          "right": 1346
+        }
+      },
+      "strip": null,
+      "bodyClasses": "bg-slate-50 text-slate-800 antialiased selection:bg-blue-500 selection:text-white"
+    }
+  },
+  {
+    "width": 1366,
+    "label": "records",
+    "route": "/manufacturing/production-receive/records",
+    "metrics": {
+      "viewport": 1366,
+      "docScrollWidth": 1366,
+      "nav": {
+        "row": {
+          "x": 0,
+          "w": 1366,
+          "right": 1366
+        },
+        "rowPadLeft": "20px",
+        "rowPadRight": "20px",
+        "left": {
+          "x": 20,
+          "w": 877.7,
+          "right": 897.7
+        },
+        "right": {
+          "x": 909.7,
+          "w": 436.3,
+          "right": 1346
+        },
+        "middleGap": 12,
+        "borderBottom": "1px solid rgb(30, 41, 59)",
+        "height": null
+      },
+      "footer": {
+        "row": {
+          "x": 0,
+          "w": 1366,
+          "right": 1366
+        },
+        "childrenGap": 345.2,
+        "height": 33
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "w": 1366,
+          "right": 1366
+        },
+        "padLeft": "20px",
+        "padRight": "20px",
+        "firstCard": {
+          "x": 20,
+          "w": 1326,
+          "right": 1346
+        }
+      },
+      "strip": null,
+      "bodyClasses": "bg-slate-50 text-slate-800 antialiased selection:bg-blue-500 selection:text-white"
+    }
+  },
+  {
+    "width": 1366,
+    "label": "yarn-qualities",
+    "route": "/masters/yarn-qualities",
+    "metrics": {
+      "viewport": 1366,
+      "docScrollWidth": 1366,
+      "nav": {
+        "row": {
+          "x": 0,
+          "w": 1366,
+          "right": 1366
+        },
+        "rowPadLeft": "20px",
+        "rowPadRight": "20px",
+        "left": {
+          "x": 20,
+          "w": 877.7,
+          "right": 897.7
+        },
+        "right": {
+          "x": 909.7,
+          "w": 436.3,
+          "right": 1346
+        },
+        "middleGap": 12,
+        "borderBottom": "1px solid rgb(30, 41, 59)",
+        "height": null
+      },
+      "footer": {
+        "row": {
+          "x": 0,
+          "w": 1366,
+          "right": 1366
+        },
+        "childrenGap": 345.2,
+        "height": 33
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "w": 1366,
+          "right": 1366
+        },
+        "padLeft": "20px",
+        "padRight": "20px",
+        "firstCard": {
+          "x": 20,
+          "w": 1326,
+          "right": 1346
+        }
+      },
+      "strip": null,
+      "bodyClasses": "bg-slate-50 text-slate-800 antialiased selection:bg-blue-500 selection:text-white"
+    }
+  },
+  {
+    "width": 1512,
+    "label": "dashboard",
+    "route": "/",
+    "metrics": {
+      "viewport": 1512,
+      "docScrollWidth": 1512,
+      "nav": {
+        "row": {
+          "x": 0,
+          "w": 1512,
+          "right": 1512
+        },
+        "rowPadLeft": "20px",
+        "rowPadRight": "20px",
+        "left": {
+          "x": 20,
+          "w": 1023.7,
+          "right": 1043.7
+        },
+        "right": {
+          "x": 1055.7,
+          "w": 436.3,
+          "right": 1492
+        },
+        "middleGap": 12,
+        "borderBottom": "1px solid rgb(30, 41, 59)",
+        "height": null
+      },
+      "footer": {
+        "row": {
+          "x": 0,
+          "w": 1512,
+          "right": 1512
+        },
+        "childrenGap": 345.2,
+        "height": 33
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "w": 1512,
+          "right": 1512
+        },
+        "padLeft": "20px",
+        "padRight": "20px",
+        "firstCard": {
+          "x": 20,
+          "w": 1472,
+          "right": 1492
+        }
+      },
+      "strip": null,
+      "bodyClasses": "bg-slate-50 text-slate-800 antialiased selection:bg-blue-500 selection:text-white"
+    }
+  },
+  {
+    "width": 1512,
+    "label": "entry",
+    "route": "/manufacturing/production-receive/entry",
+    "metrics": {
+      "viewport": 1512,
+      "docScrollWidth": 1512,
+      "nav": {
+        "row": {
+          "x": 0,
+          "w": 1512,
+          "right": 1512
+        },
+        "rowPadLeft": "20px",
+        "rowPadRight": "20px",
+        "left": {
+          "x": 20,
+          "w": 1023.7,
+          "right": 1043.7
+        },
+        "right": {
+          "x": 1055.7,
+          "w": 436.3,
+          "right": 1492
+        },
+        "middleGap": 12,
+        "borderBottom": "1px solid rgb(30, 41, 59)",
+        "height": null
+      },
+      "footer": {
+        "row": {
+          "x": 0,
+          "w": 1512,
+          "right": 1512
+        },
+        "childrenGap": 345.2,
+        "height": 33
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "w": 1512,
+          "right": 1512
+        },
+        "padLeft": "20px",
+        "padRight": "20px",
+        "firstCard": {
+          "x": 20,
+          "w": 1472,
+          "right": 1492
+        }
+      },
+      "strip": null,
+      "bodyClasses": "bg-slate-50 text-slate-800 antialiased selection:bg-blue-500 selection:text-white"
+    }
+  },
+  {
+    "width": 1512,
+    "label": "records",
+    "route": "/manufacturing/production-receive/records",
+    "metrics": {
+      "viewport": 1512,
+      "docScrollWidth": 1512,
+      "nav": {
+        "row": {
+          "x": 0,
+          "w": 1512,
+          "right": 1512
+        },
+        "rowPadLeft": "20px",
+        "rowPadRight": "20px",
+        "left": {
+          "x": 20,
+          "w": 1023.7,
+          "right": 1043.7
+        },
+        "right": {
+          "x": 1055.7,
+          "w": 436.3,
+          "right": 1492
+        },
+        "middleGap": 12,
+        "borderBottom": "1px solid rgb(30, 41, 59)",
+        "height": null
+      },
+      "footer": {
+        "row": {
+          "x": 0,
+          "w": 1512,
+          "right": 1512
+        },
+        "childrenGap": 345.2,
+        "height": 33
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "w": 1512,
+          "right": 1512
+        },
+        "padLeft": "20px",
+        "padRight": "20px",
+        "firstCard": {
+          "x": 20,
+          "w": 1472,
+          "right": 1492
+        }
+      },
+      "strip": null,
+      "bodyClasses": "bg-slate-50 text-slate-800 antialiased selection:bg-blue-500 selection:text-white"
+    }
+  },
+  {
+    "width": 1512,
+    "label": "yarn-qualities",
+    "route": "/masters/yarn-qualities",
+    "metrics": {
+      "viewport": 1512,
+      "docScrollWidth": 1512,
+      "nav": {
+        "row": {
+          "x": 0,
+          "w": 1512,
+          "right": 1512
+        },
+        "rowPadLeft": "20px",
+        "rowPadRight": "20px",
+        "left": {
+          "x": 20,
+          "w": 1023.7,
+          "right": 1043.7
+        },
+        "right": {
+          "x": 1055.7,
+          "w": 436.3,
+          "right": 1492
+        },
+        "middleGap": 12,
+        "borderBottom": "1px solid rgb(30, 41, 59)",
+        "height": null
+      },
+      "footer": {
+        "row": {
+          "x": 0,
+          "w": 1512,
+          "right": 1512
+        },
+        "childrenGap": 345.2,
+        "height": 33
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "w": 1512,
+          "right": 1512
+        },
+        "padLeft": "20px",
+        "padRight": "20px",
+        "firstCard": {
+          "x": 20,
+          "w": 1472,
+          "right": 1492
+        }
+      },
+      "strip": null,
+      "bodyClasses": "bg-slate-50 text-slate-800 antialiased selection:bg-blue-500 selection:text-white"
+    }
+  },
+  {
+    "width": 1920,
+    "label": "dashboard",
+    "route": "/",
+    "metrics": {
+      "viewport": 1920,
+      "docScrollWidth": 1920,
+      "nav": {
+        "row": {
+          "x": 0,
+          "w": 1920,
+          "right": 1920
+        },
+        "rowPadLeft": "20px",
+        "rowPadRight": "20px",
+        "left": {
+          "x": 20,
+          "w": 1431.7,
+          "right": 1451.7
+        },
+        "right": {
+          "x": 1463.7,
+          "w": 436.3,
+          "right": 1900
+        },
+        "middleGap": 12,
+        "borderBottom": "1px solid rgb(30, 41, 59)",
+        "height": null
+      },
+      "footer": {
+        "row": {
+          "x": 0,
+          "w": 1920,
+          "right": 1920
+        },
+        "childrenGap": 345.2,
+        "height": 33
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "w": 1920,
+          "right": 1920
+        },
+        "padLeft": "20px",
+        "padRight": "20px",
+        "firstCard": {
+          "x": 20,
+          "w": 1880,
+          "right": 1900
+        }
+      },
+      "strip": null,
+      "bodyClasses": "bg-slate-50 text-slate-800 antialiased selection:bg-blue-500 selection:text-white"
+    }
+  },
+  {
+    "width": 1920,
+    "label": "entry",
+    "route": "/manufacturing/production-receive/entry",
+    "metrics": {
+      "viewport": 1920,
+      "docScrollWidth": 1920,
+      "nav": {
+        "row": {
+          "x": 0,
+          "w": 1920,
+          "right": 1920
+        },
+        "rowPadLeft": "20px",
+        "rowPadRight": "20px",
+        "left": {
+          "x": 20,
+          "w": 1431.7,
+          "right": 1451.7
+        },
+        "right": {
+          "x": 1463.7,
+          "w": 436.3,
+          "right": 1900
+        },
+        "middleGap": 12,
+        "borderBottom": "1px solid rgb(30, 41, 59)",
+        "height": null
+      },
+      "footer": {
+        "row": {
+          "x": 0,
+          "w": 1920,
+          "right": 1920
+        },
+        "childrenGap": 345.2,
+        "height": 33
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "w": 1920,
+          "right": 1920
+        },
+        "padLeft": "20px",
+        "padRight": "20px",
+        "firstCard": {
+          "x": 20,
+          "w": 1880,
+          "right": 1900
+        }
+      },
+      "strip": null,
+      "bodyClasses": "bg-slate-50 text-slate-800 antialiased selection:bg-blue-500 selection:text-white"
+    }
+  },
+  {
+    "width": 1920,
+    "label": "records",
+    "route": "/manufacturing/production-receive/records",
+    "metrics": {
+      "viewport": 1920,
+      "docScrollWidth": 1920,
+      "nav": {
+        "row": {
+          "x": 0,
+          "w": 1920,
+          "right": 1920
+        },
+        "rowPadLeft": "20px",
+        "rowPadRight": "20px",
+        "left": {
+          "x": 20,
+          "w": 1431.7,
+          "right": 1451.7
+        },
+        "right": {
+          "x": 1463.7,
+          "w": 436.3,
+          "right": 1900
+        },
+        "middleGap": 12,
+        "borderBottom": "1px solid rgb(30, 41, 59)",
+        "height": null
+      },
+      "footer": {
+        "row": {
+          "x": 0,
+          "w": 1920,
+          "right": 1920
+        },
+        "childrenGap": 345.2,
+        "height": 33
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "w": 1920,
+          "right": 1920
+        },
+        "padLeft": "20px",
+        "padRight": "20px",
+        "firstCard": {
+          "x": 20,
+          "w": 1880,
+          "right": 1900
+        }
+      },
+      "strip": null,
+      "bodyClasses": "bg-slate-50 text-slate-800 antialiased selection:bg-blue-500 selection:text-white"
+    }
+  },
+  {
+    "width": 1920,
+    "label": "yarn-qualities",
+    "route": "/masters/yarn-qualities",
+    "metrics": {
+      "viewport": 1920,
+      "docScrollWidth": 1920,
+      "nav": {
+        "row": {
+          "x": 0,
+          "w": 1920,
+          "right": 1920
+        },
+        "rowPadLeft": "20px",
+        "rowPadRight": "20px",
+        "left": {
+          "x": 20,
+          "w": 1431.7,
+          "right": 1451.7
+        },
+        "right": {
+          "x": 1463.7,
+          "w": 436.3,
+          "right": 1900
+        },
+        "middleGap": 12,
+        "borderBottom": "1px solid rgb(30, 41, 59)",
+        "height": null
+      },
+      "footer": {
+        "row": {
+          "x": 0,
+          "w": 1920,
+          "right": 1920
+        },
+        "childrenGap": 345.2,
+        "height": 33
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "w": 1920,
+          "right": 1920
+        },
+        "padLeft": "20px",
+        "padRight": "20px",
+        "firstCard": {
+          "x": 20,
+          "w": 1880,
+          "right": 1900
+        }
+      },
+      "strip": null,
+      "bodyClasses": "bg-slate-50 text-slate-800 antialiased selection:bg-blue-500 selection:text-white"
+    }
+  },
+  {
+    "width": 2560,
+    "label": "dashboard",
+    "route": "/",
+    "metrics": {
+      "viewport": 2560,
+      "docScrollWidth": 2560,
+      "nav": {
+        "row": {
+          "x": 0,
+          "w": 2560,
+          "right": 2560
+        },
+        "rowPadLeft": "20px",
+        "rowPadRight": "20px",
+        "left": {
+          "x": 20,
+          "w": 2071.7,
+          "right": 2091.7
+        },
+        "right": {
+          "x": 2103.7,
+          "w": 436.3,
+          "right": 2540
+        },
+        "middleGap": 12,
+        "borderBottom": "1px solid rgb(30, 41, 59)",
+        "height": null
+      },
+      "footer": {
+        "row": {
+          "x": 0,
+          "w": 2560,
+          "right": 2560
+        },
+        "childrenGap": 345.2,
+        "height": 33
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "w": 2560,
+          "right": 2560
+        },
+        "padLeft": "20px",
+        "padRight": "20px",
+        "firstCard": {
+          "x": 20,
+          "w": 2520,
+          "right": 2540
+        }
+      },
+      "strip": null,
+      "bodyClasses": "bg-slate-50 text-slate-800 antialiased selection:bg-blue-500 selection:text-white"
+    }
+  },
+  {
+    "width": 2560,
+    "label": "entry",
+    "route": "/manufacturing/production-receive/entry",
+    "metrics": {
+      "viewport": 2560,
+      "docScrollWidth": 2560,
+      "nav": {
+        "row": {
+          "x": 0,
+          "w": 2560,
+          "right": 2560
+        },
+        "rowPadLeft": "20px",
+        "rowPadRight": "20px",
+        "left": {
+          "x": 20,
+          "w": 2071.7,
+          "right": 2091.7
+        },
+        "right": {
+          "x": 2103.7,
+          "w": 436.3,
+          "right": 2540
+        },
+        "middleGap": 12,
+        "borderBottom": "1px solid rgb(30, 41, 59)",
+        "height": null
+      },
+      "footer": {
+        "row": {
+          "x": 0,
+          "w": 2560,
+          "right": 2560
+        },
+        "childrenGap": 345.2,
+        "height": 33
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "w": 2560,
+          "right": 2560
+        },
+        "padLeft": "20px",
+        "padRight": "20px",
+        "firstCard": {
+          "x": 20,
+          "w": 2520,
+          "right": 2540
+        }
+      },
+      "strip": null,
+      "bodyClasses": "bg-slate-50 text-slate-800 antialiased selection:bg-blue-500 selection:text-white"
+    }
+  },
+  {
+    "width": 2560,
+    "label": "records",
+    "route": "/manufacturing/production-receive/records",
+    "metrics": {
+      "viewport": 2560,
+      "docScrollWidth": 2560,
+      "nav": {
+        "row": {
+          "x": 0,
+          "w": 2560,
+          "right": 2560
+        },
+        "rowPadLeft": "20px",
+        "rowPadRight": "20px",
+        "left": {
+          "x": 20,
+          "w": 2071.7,
+          "right": 2091.7
+        },
+        "right": {
+          "x": 2103.7,
+          "w": 436.3,
+          "right": 2540
+        },
+        "middleGap": 12,
+        "borderBottom": "1px solid rgb(30, 41, 59)",
+        "height": null
+      },
+      "footer": {
+        "row": {
+          "x": 0,
+          "w": 2560,
+          "right": 2560
+        },
+        "childrenGap": 345.2,
+        "height": 33
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "w": 2560,
+          "right": 2560
+        },
+        "padLeft": "20px",
+        "padRight": "20px",
+        "firstCard": {
+          "x": 20,
+          "w": 2520,
+          "right": 2540
+        }
+      },
+      "strip": null,
+      "bodyClasses": "bg-slate-50 text-slate-800 antialiased selection:bg-blue-500 selection:text-white"
+    }
+  },
+  {
+    "width": 2560,
+    "label": "yarn-qualities",
+    "route": "/masters/yarn-qualities",
+    "metrics": {
+      "viewport": 2560,
+      "docScrollWidth": 2560,
+      "nav": {
+        "row": {
+          "x": 0,
+          "w": 2560,
+          "right": 2560
+        },
+        "rowPadLeft": "20px",
+        "rowPadRight": "20px",
+        "left": {
+          "x": 20,
+          "w": 2071.7,
+          "right": 2091.7
+        },
+        "right": {
+          "x": 2103.7,
+          "w": 436.3,
+          "right": 2540
+        },
+        "middleGap": 12,
+        "borderBottom": "1px solid rgb(30, 41, 59)",
+        "height": null
+      },
+      "footer": {
+        "row": {
+          "x": 0,
+          "w": 2560,
+          "right": 2560
+        },
+        "childrenGap": 345.2,
+        "height": 33
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "w": 2560,
+          "right": 2560
+        },
+        "padLeft": "20px",
+        "padRight": "20px",
+        "firstCard": {
+          "x": 20,
+          "w": 2520,
+          "right": 2540
+        }
+      },
+      "strip": null,
+      "bodyClasses": "bg-slate-50 text-slate-800 antialiased selection:bg-blue-500 selection:text-white"
+    }
+  }
+]
