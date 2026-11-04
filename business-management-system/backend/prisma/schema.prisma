@@ -36,6 +36,10 @@ model Company {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   financialYears     FinancialYear[]
+  ledgerAccounts     LedgerAccount[]
+  bankVouchers       BankVoucher[]
+  journalLines       JournalLine[]
+  voucherSequences   VoucherSequence[]
   parties            Party[]
   machines           Machine[]
   operators          Operator[]
@@ -64,6 +68,9 @@ model FinancialYear {
   productionBooks    ProductionBook[]
   productionReceives ProductionReceive[]
   purchaseBills      PurchaseBill[]
+  bankVouchers       BankVoucher[]
+  journalLines       JournalLine[]
+  voucherSequences   VoucherSequence[]
 
   @@unique([companyId, id])
   @@unique([companyId, yearName])
@@ -105,6 +112,8 @@ model Party {
 
   company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   productionReceives ProductionReceive[]
+  ledgerAccounts     LedgerAccount[]
+  bankVouchers       BankVoucher[]
   purchaseBills      PurchaseBill[]
 
   @@unique([companyId, id])
@@ -371,4 +380,167 @@ model PurchaseBillItem {
 
   @@index([purchaseBillId])
   @@map("purchase_bill_items")
+}
+
+// =============================================================
+// Phase 12 — Ledger Accounts & Bank Vouchers (Bank Receipt / Payment)
+// =============================================================
+
+enum LedgerAccountGroup {
+  BANK
+  SUNDRY_DEBTORS
+  SUNDRY_CREDITORS
+  DIRECT_EXPENSES
+  INDIRECT_EXPENSES
+  DIRECT_INCOME
+  INDIRECT_INCOME
+  ASSETS
+  LIABILITIES
+  CAPITAL
+  OTHERS
+}
+
+enum LedgerAccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+enum BankVoucherType {
+  RECEIPT
+  PAYMENT
+}
+
+enum PaymentMode {
+  NEFT
+  RTGS
+  IMPS
+  CHEQUE
+  UPI
+  BANK_TRANSFER
+  OTHER
+}
+
+enum BankVoucherStatus {
+  POSTED
+  CANCELLED
+}
+
+model LedgerAccount {
+  id                String             @id @default(uuid())
+  companyId         String             @map("company_id")
+  accountCode       String             @map("account_code")
+  accountName       String             @map("account_name")
+  accountGroup      LedgerAccountGroup @map("account_group")
+  accountType       LedgerAccountType  @map("account_type")
+  balanceType       BalanceType        @default(DEBIT) @map("balance_type")
+  openingBalance    Decimal            @default(0.00) @db.Decimal(15, 2) @map("opening_balance")
+  isBankAccount     Boolean            @default(false) @map("is_bank_account")
+  bankName          String?            @map("bank_name")
+  branchName        String?            @map("branch_name")
+  accountHolderName String?            @map("account_holder_name")
+  ifscCode          String?            @map("ifsc_code")
+  bankAccountNumber String?            @map("bank_account_number")
+  partyId           String?            @map("party_id")
+  isAutoCreated     Boolean            @default(false) @map("is_auto_created")
+  description       String?
+  isActive          Boolean            @default(true) @map("is_active")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  company              Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  party                Party?        @relation(fields: [companyId, partyId], references: [companyId, id], onDelete: Restrict)
+  journalLines         JournalLine[]
+  bankAccountVouchers  BankVoucher[] @relation("BankAccountVoucher")
+  counterpartyVouchers BankVoucher[] @relation("CounterpartyVoucher")
+
+  @@unique([companyId, id])
+  @@unique([companyId, accountCode])
+  @@index([companyId, accountName])
+  @@index([companyId, accountGroup])
+  @@index([companyId, isBankAccount, isActive])
+  @@map("ledger_accounts")
+}
+
+model BankVoucher {
+  id                   String            @id @default(uuid())
+  companyId            String            @map("company_id")
+  financialYearId      String            @map("financial_year_id")
+  voucherType          BankVoucherType @map("voucher_type")
+  voucherNumber        String            @map("voucher_number")
+  voucherDate          DateTime          @map("voucher_date")
+  partyId              String?           @map("party_id")
+  counterpartyLedgerId String            @map("counterparty_ledger_id")
+  bankAccountLedgerId  String            @map("bank_account_ledger_id")
+  paymentMode          PaymentMode       @map("payment_mode")
+  amount               Decimal           @db.Decimal(15, 2)
+  referenceNumber      String?           @map("reference_number")
+  chequeNumber         String?           @map("cheque_number")
+  chequeDate           DateTime?         @map("cheque_date")
+  bankName             String?           @map("bank_name")
+  branchName           String?           @map("branch_name")
+  narration            String?
+  remarks              String?
+  status               BankVoucherStatus @default(POSTED)
+  revision             Int               @default(1)
+  cancellationReason   String?           @map("cancellation_reason")
+  cancelledAt          DateTime?         @map("cancelled_at")
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @updatedAt @map("updated_at")
+
+  company            Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  financialYear       FinancialYear     @relation(fields: [companyId, financialYearId], references: [companyId, id], onDelete: Restrict)
+  party               Party?            @relation(fields: [companyId, partyId], references: [companyId, id], onDelete: Restrict)
+  counterpartyLedger  LedgerAccount     @relation("CounterpartyVoucher", fields: [companyId, counterpartyLedgerId], references: [companyId, id], onDelete: Restrict)
+  bankAccountLedger   LedgerAccount     @relation("BankAccountVoucher", fields: [companyId, bankAccountLedgerId], references: [companyId, id], onDelete: Restrict)
+  journalLines        JournalLine[]
+
+  @@unique([companyId, financialYearId, voucherType, voucherNumber])
+  @@unique([companyId, id])
+  @@index([companyId, financialYearId, voucherDate])
+  @@index([companyId, voucherType, status])
+  @@index([companyId, partyId])
+  @@map("bank_vouchers")
+}
+
+model JournalLine {
+  id               String   @id @default(uuid())
+  companyId        String   @map("company_id")
+  financialYearId  String   @map("financial_year_id")
+  voucherId        String   @map("voucher_id")
+  ledgerAccountId  String   @map("ledger_account_id")
+  revision         Int      @default(1)
+  lineNumber       Int      @map("line_number")
+  debitAmount      Decimal  @default(0.00) @db.Decimal(15, 2) @map("debit_amount")
+  creditAmount     Decimal  @default(0.00) @db.Decimal(15, 2) @map("credit_amount")
+  isReversal       Boolean  @default(false) @map("is_reversal")
+  postingDate      DateTime @map("posting_date")
+  narration        String?
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  financialYear FinancialYear @relation(fields: [companyId, financialYearId], references: [companyId, id], onDelete: Restrict)
+  voucher       BankVoucher   @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  ledgerAccount LedgerAccount @relation(fields: [companyId, ledgerAccountId], references: [companyId, id], onDelete: Restrict)
+
+  @@index([companyId, financialYearId, ledgerAccountId])
+  @@index([companyId, voucherId])
+  @@map("journal_lines")
+}
+
+model VoucherSequence {
+  id              String          @id @default(uuid())
+  companyId       String          @map("company_id")
+  financialYearId String          @map("financial_year_id")
+  voucherType     BankVoucherType @map("voucher_type")
+  lastNumber      Int             @default(0) @map("last_number")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  financialYear FinancialYear @relation(fields: [companyId, financialYearId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, financialYearId, voucherType])
+  @@map("voucher_sequences")
 }

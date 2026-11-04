@@ -13,6 +13,15 @@ import {
   YarnQuality,
   YarnGrade,
   ProductionBook,
+  LedgerAccount,
+  LedgerAccountPayload,
+  BankVoucher,
+  BankVoucherLookups,
+  BankVoucherListParams,
+  BankVoucherListResult,
+  BankVoucherPayload,
+  BankVoucherType,
+  PaymentMode,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -597,3 +606,142 @@ export const listPurchaseBills = async (params?: {
 };
 
 
+
+// =============================================================
+// Phase 12: Ledger Accounts & Bank Vouchers
+// =============================================================
+
+export interface LedgerAccountListParams {
+  search?: string;
+  accountGroup?: string;
+  isBankAccount?: boolean;
+  includeInactive?: boolean;
+}
+
+export const getLedgerAccounts = async (
+  params?: LedgerAccountListParams
+): Promise<LedgerAccount[]> => {
+  const response = await apiClient.get<ApiResponse<LedgerAccount[]>>('/ledger-accounts', { params });
+  return response.data.data;
+};
+
+export const getLedgerAccount = async (id: string): Promise<LedgerAccount> => {
+  const response = await apiClient.get<ApiResponse<LedgerAccount>>(`/ledger-accounts/${id}`);
+  return response.data.data;
+};
+
+export const createLedgerAccount = async (data: LedgerAccountPayload): Promise<LedgerAccount> => {
+  const response = await apiClient.post<ApiResponse<LedgerAccount>>('/ledger-accounts', data);
+  return response.data.data;
+};
+
+export const updateLedgerAccount = async (
+  id: string,
+  data: LedgerAccountPayload
+): Promise<LedgerAccount> => {
+  const response = await apiClient.put<ApiResponse<LedgerAccount>>(`/ledger-accounts/${id}`, data);
+  return response.data.data;
+};
+
+export const setLedgerAccountStatus = async (
+  id: string,
+  isActive: boolean
+): Promise<LedgerAccount> => {
+  const response = await apiClient.patch<ApiResponse<LedgerAccount>>(
+    `/ledger-accounts/${id}/status`,
+    { isActive }
+  );
+  return response.data.data;
+};
+
+const bankVoucherBase = (voucherType: BankVoucherType): string =>
+  voucherType === 'RECEIPT' ? '/bank-receipts' : '/bank-payments';
+
+export const getBankVoucherLookups = async (
+  voucherType: BankVoucherType
+): Promise<BankVoucherLookups> => {
+  const response = await apiClient.get<ApiResponse<BankVoucherLookups>>(
+    `${bankVoucherBase(voucherType)}/lookups`
+  );
+  return response.data.data;
+};
+
+export const getNextBankVoucherNumber = async (
+  voucherType: BankVoucherType
+): Promise<{ voucherNumber: string }> => {
+  const response = await apiClient.get<ApiResponse<{ voucherNumber: string }>>(
+    `${bankVoucherBase(voucherType)}/next-number`
+  );
+  return response.data.data;
+};
+
+export const getBankVoucherSummary = async (
+  voucherType: BankVoucherType
+): Promise<{ posted: number; cancelled: number }> => {
+  const response = await apiClient.get<ApiResponse<{ posted: number; cancelled: number }>>(
+    `${bankVoucherBase(voucherType)}/summary`
+  );
+  return response.data.data;
+};
+
+export const listBankVouchers = async (
+  voucherType: BankVoucherType,
+  params?: BankVoucherListParams
+): Promise<BankVoucherListResult> => {
+  const response = await apiClient.get<any>(bankVoucherBase(voucherType), { params });
+  return {
+    items: (response.data.data ?? []) as BankVoucher[],
+    total: Number(response.data.total ?? 0),
+    page: Number(response.data.page ?? 1),
+    limit: Number(response.data.limit ?? 20),
+    totalPages: Number(response.data.totalPages ?? 1),
+    totalAmount: String(response.data.totalAmount ?? '0.00'),
+  };
+};
+
+export const getBankVoucherById = async (
+  voucherType: BankVoucherType,
+  id: string
+): Promise<BankVoucher> => {
+  const response = await apiClient.get<ApiResponse<BankVoucher>>(
+    `${bankVoucherBase(voucherType)}/${id}`
+  );
+  return response.data.data;
+};
+
+export const createBankVoucher = async (
+  voucherType: BankVoucherType,
+  payload: BankVoucherPayload
+): Promise<BankVoucher> => {
+  const response = await apiClient.post<ApiResponse<BankVoucher>>(
+    bankVoucherBase(voucherType),
+    payload
+  );
+  return response.data.data;
+};
+
+export const updateBankVoucher = async (
+  voucherType: BankVoucherType,
+  id: string,
+  payload: BankVoucherPayload
+): Promise<BankVoucher> => {
+  const response = await apiClient.put<ApiResponse<BankVoucher>>(
+    `${bankVoucherBase(voucherType)}/${id}`,
+    payload
+  );
+  return response.data.data;
+};
+
+export const cancelBankVoucher = async (
+  voucherType: BankVoucherType,
+  id: string,
+  reason: string
+): Promise<BankVoucher> => {
+  const response = await apiClient.post<ApiResponse<BankVoucher>>(
+    `${bankVoucherBase(voucherType)}/${id}/cancel`,
+    { reason }
+  );
+  return response.data.data;
+};
+
+export type BankPaymentMode = PaymentMode;

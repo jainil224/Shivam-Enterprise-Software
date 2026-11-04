@@ -12,7 +12,8 @@
     "prisma:studio": "prisma studio",
     "test:db": "tsx scripts/db-smoke-test.ts",
     "test:gstin": "tsx scripts/gstin-api-integration-test.ts",
-    "test:gstin:http": "tsx scripts/gstin-http-endpoint-test.ts"
+    "test:gstin:http": "tsx scripts/gstin-http-endpoint-test.ts",
+    "test:phase12": "tsx scripts/phase12-bank-voucher-test.ts"
   },
   "keywords": [
     "bms",

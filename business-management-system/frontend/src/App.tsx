@@ -20,6 +20,11 @@ import { PackingSlipPrintPage } from './pages/PackingSlipPrintPage';
 import { PurchaseRegisterPage } from './pages/PurchaseRegisterPage';
 import { PurchaseBillEntryPage } from './pages/PurchaseBillEntryPage';
 import { PurchaseBillDetailPage } from './pages/PurchaseBillDetailPage';
+import { LedgerAccountsPage } from './pages/LedgerAccountsPage';
+import { BankVoucherRegisterPage } from './pages/BankVoucherRegisterPage';
+import { BankVoucherEntryPage } from './pages/BankVoucherEntryPage';
+import { BankVoucherDetailPage } from './pages/BankVoucherDetailPage';
+import { BankVoucherPrintPage } from './pages/BankVoucherPrintPage';
 import { CompanyProvider } from './context/CompanyContext';
 import { UIModalProvider } from './context/UIModalContext';
 import { RequireCompanyContext } from './components/RequireCompanyContext';
@@ -190,6 +195,100 @@ export const App: React.FC = () => {
                 element={
                   <RequireCompanyContext>
                     <PurchaseBillDetailPage />
+                  </RequireCompanyContext>
+                }
+              />
+
+              {/* Ledger & Bank Account Master (Phase 12) */}
+              <Route
+                path="/masters/ledger-accounts"
+                element={
+                  <RequireCompanyContext>
+                    <LedgerAccountsPage />
+                  </RequireCompanyContext>
+                }
+              />
+
+              {/* Bank Receipts (Phase 12) */}
+              <Route
+                path="/transactions/bank-receipts"
+                element={
+                  <RequireCompanyContext>
+                    <BankVoucherRegisterPage voucherType="RECEIPT" />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/bank-receipts/new"
+                element={
+                  <RequireCompanyContext>
+                    <BankVoucherEntryPage voucherType="RECEIPT" />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/bank-receipts/:id/edit"
+                element={
+                  <RequireCompanyContext>
+                    <BankVoucherEntryPage voucherType="RECEIPT" />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/bank-receipts/:id/print"
+                element={
+                  <RequireCompanyContext>
+                    <BankVoucherPrintPage voucherType="RECEIPT" />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/bank-receipts/:id"
+                element={
+                  <RequireCompanyContext>
+                    <BankVoucherDetailPage voucherType="RECEIPT" />
+                  </RequireCompanyContext>
+                }
+              />
+
+              {/* Bank Payments (Phase 12) */}
+              <Route
+                path="/transactions/bank-payments"
+                element={
+                  <RequireCompanyContext>
+                    <BankVoucherRegisterPage voucherType="PAYMENT" />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/bank-payments/new"
+                element={
+                  <RequireCompanyContext>
+                    <BankVoucherEntryPage voucherType="PAYMENT" />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/bank-payments/:id/edit"
+                element={
+                  <RequireCompanyContext>
+                    <BankVoucherEntryPage voucherType="PAYMENT" />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/bank-payments/:id/print"
+                element={
+                  <RequireCompanyContext>
+                    <BankVoucherPrintPage voucherType="PAYMENT" />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/bank-payments/:id"
+                element={
+                  <RequireCompanyContext>
+                    <BankVoucherDetailPage voucherType="PAYMENT" />
                   </RequireCompanyContext>
                 }
               />

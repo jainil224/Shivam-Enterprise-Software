@@ -212,6 +212,7 @@ export const TopNavigationBar: React.FC<TopNavigationBarProps> = ({
                 </div>
                 {[
                   { name: 'Parties & Accounts Master', route: '/masters/parties', desc: 'Customers, suppliers, GSTIN, opening balances' },
+                  { name: 'Ledger & Bank Account Master', route: '/masters/ledger-accounts', desc: 'Chart of accounts, bank ledgers, live balances' },
                   { name: 'Machine Master (TFO / Texturising)', route: '/masters/machines', desc: 'Equipment codes, names, spindle counts' },
                   { name: 'Operator Master', route: '/masters/operators', desc: 'Machine operators, workers, phone numbers' },
                   { name: 'Location / Warehouse Master', route: '/masters/locations', desc: 'Godowns, storage bays, packing sections' },
@@ -269,8 +270,8 @@ export const TopNavigationBar: React.FC<TopNavigationBarProps> = ({
                   { name: 'General Purchase Bill', phase: 'Phase 8' },
                   { name: 'Purchase Order', phase: 'Phase 8' },
                   { name: 'Debit Note', phase: 'Phase 8' },
-                  { name: 'Bank Receipt Voucher', phase: 'Phase 9' },
-                  { name: 'Bank Payment Voucher', phase: 'Phase 9' },
+                  { name: 'Bank Receipt Voucher', phase: 'Active', route: '/transactions/bank-receipts', active: true },
+                  { name: 'Bank Payment Voucher', phase: 'Active', route: '/transactions/bank-payments', active: true },
                   { name: 'Cash Receipt Voucher', phase: 'Phase 9' },
                   { name: 'Cash Payment Voucher', phase: 'Phase 9' },
                 ].map((item, idx) => (
