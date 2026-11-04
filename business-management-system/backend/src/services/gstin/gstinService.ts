@@ -20,7 +20,7 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 export class GSTINService {
   private provider: GSTINVerificationProvider;
-  /** In-memory cache: GSTIN (uppercase) → cache entry */
+  /** In-memory cache: GSTIN (uppercase) -> cache entry */
   private cache: Map<string, CacheEntry> = new Map();
 
   constructor() {
@@ -83,12 +83,14 @@ export class GSTINService {
     if (!gstin) {
       const err: any = new Error('GSTIN is required.');
       err.statusCode = 400;
+      err.code = 'INVALID_FORMAT';
       throw err;
     }
 
     if (gstin.length !== 15) {
       const err: any = new Error('GSTIN must be exactly 15 characters.');
       err.statusCode = 400;
+      err.code = 'INVALID_FORMAT';
       throw err;
     }
 
@@ -148,7 +150,7 @@ export class GSTINService {
             creditsRemaining: cached.creditsRemaining,
           };
         } else {
-          // Cache expired — remove it
+          // Cache expired - remove it
           this.cache.delete(gstin);
         }
       }

@@ -3,7 +3,10 @@ import path from 'path';
 
 // Load .env file from backend root. This is the ONLY place provider
 // credentials are read from - they are never sent to the React app.
+// Primary: backend/.env relative to the process working directory.
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+// Fallback: the same file when the server is started from the repository root.
+dotenv.config({ path: path.resolve(process.cwd(), 'backend/.env') });
 
 const rawGstinKey = (process.env.GSTIN_API_KEY || '').trim();
 const requestedProvider = (process.env.GSTIN_PROVIDER || '').trim().toLowerCase();

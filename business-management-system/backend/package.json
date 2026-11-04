@@ -11,7 +11,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "test:db": "tsx scripts/db-smoke-test.ts",
-    "test:gstin": "tsx scripts/gstin-api-integration-test.ts"
+    "test:gstin": "tsx scripts/gstin-api-integration-test.ts",
+    "test:gstin:http": "tsx scripts/gstin-http-endpoint-test.ts"
   },
   "keywords": [
     "bms",
