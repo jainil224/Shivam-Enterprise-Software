@@ -25,6 +25,12 @@ import { BankVoucherRegisterPage } from './pages/BankVoucherRegisterPage';
 import { BankVoucherEntryPage } from './pages/BankVoucherEntryPage';
 import { BankVoucherDetailPage } from './pages/BankVoucherDetailPage';
 import { BankVoucherPrintPage } from './pages/BankVoucherPrintPage';
+import { ItemMasterPage } from './pages/ItemMasterPage';
+import { OrderEntryPage } from './pages/OrderEntryPage';
+import { OrderRegisterPage } from './pages/OrderRegisterPage';
+import { OrderDetailPage } from './pages/OrderDetailPage';
+import { OrderPrintPage } from './pages/OrderPrintPage';
+import { OrderReportsPage } from './pages/OrderReportsPage';
 import { CompanyProvider } from './context/CompanyContext';
 import { UIModalProvider } from './context/UIModalContext';
 import { RequireCompanyContext } from './components/RequireCompanyContext';
@@ -293,6 +299,114 @@ export const App: React.FC = () => {
                 }
               />
 
+              {/* Item Master (Phase 13) */}
+              <Route
+                path="/masters/items"
+                element={
+                  <RequireCompanyContext>
+                    <ItemMasterPage />
+                  </RequireCompanyContext>
+                }
+              />
+
+              {/* Sales Orders (Phase 13) */}
+              <Route
+                path="/transactions/sales-orders/reports"
+                element={
+                  <RequireCompanyContext>
+                    <OrderReportsPage documentType="SALES_ORDER" />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/sales-orders/new"
+                element={
+                  <RequireCompanyContext>
+                    <OrderEntryPage documentType="SALES_ORDER" />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/sales-orders/:id/edit"
+                element={
+                  <RequireCompanyContext>
+                    <OrderEntryPage documentType="SALES_ORDER" />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/sales-orders/:id/print"
+                element={
+                  <RequireCompanyContext>
+                    <OrderPrintPage documentType="SALES_ORDER" />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/sales-orders/:id"
+                element={
+                  <RequireCompanyContext>
+                    <OrderDetailPage documentType="SALES_ORDER" />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/sales-orders"
+                element={
+                  <RequireCompanyContext>
+                    <OrderRegisterPage documentType="SALES_ORDER" />
+                  </RequireCompanyContext>
+                }
+              />
+              {/* Purchase Orders (Phase 13) */}
+              <Route
+                path="/transactions/purchase-orders/reports"
+                element={
+                  <RequireCompanyContext>
+                    <OrderReportsPage documentType="PURCHASE_ORDER" />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/purchase-orders/new"
+                element={
+                  <RequireCompanyContext>
+                    <OrderEntryPage documentType="PURCHASE_ORDER" />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/purchase-orders/:id/edit"
+                element={
+                  <RequireCompanyContext>
+                    <OrderEntryPage documentType="PURCHASE_ORDER" />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/purchase-orders/:id/print"
+                element={
+                  <RequireCompanyContext>
+                    <OrderPrintPage documentType="PURCHASE_ORDER" />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/purchase-orders/:id"
+                element={
+                  <RequireCompanyContext>
+                    <OrderDetailPage documentType="PURCHASE_ORDER" />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/purchase-orders"
+                element={
+                  <RequireCompanyContext>
+                    <OrderRegisterPage documentType="PURCHASE_ORDER" />
+                  </RequireCompanyContext>
+                }
+              />
               {/* Technical System Status & Health */}
               <Route path="/system-status" element={<WelcomePage />} />
 

@@ -16,6 +16,7 @@ import {
   Landmark,
   ClipboardList,
   FileCheck,
+  Package,
   LucideIcon
 } from 'lucide-react';
 
@@ -66,8 +67,9 @@ export const DASHBOARD_SHORTCUTS: ShortcutItem[] = [
     description: 'Advance sales bookings, buyer order confirmations and yarn delivery commitments.',
     category: 'Orders',
     icon: ClipboardList,
-    plannedPhase: 'Phase 7 (Sales & Invoicing)',
-    implemented: false,
+    plannedPhase: 'Phase 13 (Sales & Purchase Orders)',
+    implemented: true,
+    route: '/transactions/sales-orders',
   },
 
   // --- Purchases ---
@@ -100,13 +102,24 @@ export const DASHBOARD_SHORTCUTS: ShortcutItem[] = [
     implemented: false,
   },
   {
+    id: 'item_master',
+    title: 'Item Master',
+    description: 'Yarn, raw material and fabric item definitions with HSN codes, units, GST rates and default pricing.',
+    category: 'Orders',
+    icon: Package,
+    plannedPhase: 'Phase 13 (Sales & Purchase Orders)',
+    implemented: true,
+    route: '/masters/items',
+  },
+  {
     id: 'purchase_order',
     title: 'Purchase Order',
     description: 'Raw material procurement orders and yarn purchase contracts.',
     category: 'Orders',
     icon: FileCheck,
-    plannedPhase: 'Phase 8 (Purchase & Inward)',
-    implemented: false,
+    plannedPhase: 'Phase 13 (Sales & Purchase Orders)',
+    implemented: true,
+    route: '/transactions/purchase-orders',
   },
 
   // --- Banking & Cash Vouchers ---

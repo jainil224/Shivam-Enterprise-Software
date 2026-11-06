@@ -50,6 +50,13 @@ model Company {
   productionReceives ProductionReceive[]
   purchaseBills      PurchaseBill[]
 
+  items                 Item[]
+  salesOrders           SalesOrder[]
+  purchaseOrders        PurchaseOrder[]
+  orderStatusHistory    OrderStatusHistory[]
+  orderFulfilmentLinks  OrderFulfilmentLink[]
+  orderSequences        OrderSequence[]
+
   @@map("companies")
 }
 
@@ -71,6 +78,12 @@ model FinancialYear {
   bankVouchers       BankVoucher[]
   journalLines       JournalLine[]
   voucherSequences   VoucherSequence[]
+
+  salesOrders           SalesOrder[]
+  purchaseOrders        PurchaseOrder[]
+  orderStatusHistory    OrderStatusHistory[]
+  orderFulfilmentLinks  OrderFulfilmentLink[]
+  orderSequences        OrderSequence[]
 
   @@unique([companyId, id])
   @@unique([companyId, yearName])
@@ -115,6 +128,8 @@ model Party {
   ledgerAccounts     LedgerAccount[]
   bankVouchers       BankVoucher[]
   purchaseBills      PurchaseBill[]
+  salesOrders        SalesOrder[]
+  purchaseOrders     PurchaseOrder[]
 
   @@unique([companyId, id])
   @@unique([companyId, partyCode])
@@ -170,6 +185,8 @@ model Location {
 
   company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   productionReceives ProductionReceive[]
+  purchaseOrders     PurchaseOrder[]
+  purchaseOrderLines PurchaseOrderLine[]
 
   @@unique([companyId, id])
   @@unique([companyId, locationName])
@@ -188,6 +205,7 @@ model YarnQuality {
 
   company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   productionReceives ProductionReceive[]
+  items              Item[]
 
   @@unique([companyId, id])
   @@unique([companyId, qualityName])
@@ -205,6 +223,7 @@ model YarnGrade {
 
   company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   productionReceives ProductionReceive[]
+  items              Item[]
 
   @@unique([companyId, id])
   @@unique([companyId, gradeName])
@@ -543,4 +562,409 @@ model VoucherSequence {
 
   @@unique([companyId, financialYearId, voucherType])
   @@map("voucher_sequences")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 13 - Sales Orders & Purchase Orders
+// ---------------------------------------------------------------------------
+
+enum UnitOfMeasure {
+  KG
+  GRAM
+  METER
+  YARD
+  PIECE
+  ROLL
+  BOX
+  CARTON
+  PACKET
+  NOS
+}
+
+enum ItemType {
+  YARN
+  RAW_MATERIAL
+  FABRIC
+  OTHER
+}
+
+enum OrderDocumentType {
+  SALES_ORDER
+  PURCHASE_ORDER
+}
+
+enum OrderTaxType {
+  INTRA_STATE
+  INTER_STATE
+}
+
+enum OrderPriority {
+  NORMAL
+  URGENT
+}
+
+enum SalesOrderStatus {
+  DRAFT
+  CONFIRMED
+  PARTIALLY_FULFILLED
+  FULFILLED
+  CLOSED
+  CANCELLED
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  APPROVED
+  SENT
+  ACKNOWLEDGED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CLOSED
+  CANCELLED
+}
+
+enum OrderHistoryAction {
+  CREATED
+  UPDATED
+  CONFIRMED
+  APPROVED
+  SENT
+  ACKNOWLEDGED
+  COPIED
+  CANCELLED
+  STATUS_CHANGED
+  FULFILMENT_RECORDED
+}
+
+enum OrderFulfilmentDocumentType {
+  SALES_INVOICE
+  DELIVERY_CHALLAN
+  PURCHASE_BILL
+  GOODS_RECEIPT
+}
+
+model Item {
+  id                  String        @id @default(uuid())
+  companyId           String        @map("company_id")
+  itemCode            String        @map("item_code")
+  itemName            String        @map("item_name")
+  itemCategory        String?       @map("item_category")
+  itemType            ItemType      @default(OTHER) @map("item_type")
+  unit                UnitOfMeasure @default(KG)
+  hsnCode             String?       @map("hsn_code")
+  gstRate             Decimal       @default(18.00) @db.Decimal(5, 2) @map("gst_rate")
+  defaultSalesRate    Decimal       @default(0.0000) @db.Decimal(15, 4) @map("default_sales_rate")
+  defaultPurchaseRate Decimal       @default(0.0000) @db.Decimal(15, 4) @map("default_purchase_rate")
+  barcode             String?
+  description         String?
+  yarnQualityId       String?       @map("yarn_quality_id")
+  yarnGradeId         String?       @map("yarn_grade_id")
+  yarnCount           String?       @map("yarn_count")
+  denier              String?
+  lotNumber           String?       @map("lot_number")
+  fabricType          String?       @map("fabric_type")
+  fabricDesign        String?       @map("fabric_design")
+  colour              String?
+  sizeSpecification   String?       @map("size_specification")
+  isActive            Boolean       @default(true) @map("is_active")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+
+  company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  yarnQuality        YarnQuality?        @relation(fields: [companyId, yarnQualityId], references: [companyId, id])
+  yarnGrade          YarnGrade?          @relation(fields: [companyId, yarnGradeId], references: [companyId, id])
+  salesOrderLines    SalesOrderLine[]
+  purchaseOrderLines PurchaseOrderLine[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, itemCode])
+  @@index([companyId, isActive, itemType])
+  @@index([companyId, itemName])
+  @@map("items")
+}
+
+model OrderSequence {
+  id              String            @id @default(uuid())
+  companyId       String            @map("company_id")
+  financialYearId String            @map("financial_year_id")
+  orderType       OrderDocumentType @map("order_type")
+  lastNumber      Int               @default(0) @map("last_number")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  financialYear FinancialYear @relation(fields: [companyId, financialYearId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, financialYearId, orderType])
+  @@map("order_sequences")
+}
+
+model SalesOrder {
+  id                        String            @id @default(uuid())
+  companyId                 String            @map("company_id")
+  financialYearId           String            @map("financial_year_id")
+  orderNumber               String            @map("order_number")
+  orderDate                 DateTime          @map("order_date")
+  partyId                   String            @map("party_id")
+  customerReferenceNumber   String?           @map("customer_reference_number")
+  customerReferenceDate     DateTime?         @map("customer_reference_date")
+  billingAddress            String?           @map("billing_address")
+  deliveryAddress           String?           @map("delivery_address")
+  expectedDeliveryDate      DateTime?         @map("expected_delivery_date")
+  salesperson               String?
+  paymentTerms              String?           @map("payment_terms")
+  deliveryTerms             String?           @map("delivery_terms")
+  freightTerms              String?           @map("freight_terms")
+  orderValidUntil           DateTime?         @map("order_valid_until")
+  priority                  OrderPriority     @default(NORMAL)
+  status                    SalesOrderStatus  @default(DRAFT)
+  placeOfSupplyState        String?           @map("place_of_supply_state")
+  taxType                   OrderTaxType      @default(INTRA_STATE) @map("tax_type")
+  totalQuantity             Decimal           @default(0.000) @db.Decimal(15, 3) @map("total_quantity")
+  subtotal                  Decimal           @default(0.00) @db.Decimal(15, 2)
+  discountAmount            Decimal           @default(0.00) @db.Decimal(15, 2) @map("discount_amount")
+  taxableAmount             Decimal           @default(0.00) @db.Decimal(15, 2) @map("taxable_amount")
+  cgstAmount                Decimal           @default(0.00) @db.Decimal(15, 2) @map("cgst_amount")
+  sgstAmount                Decimal           @default(0.00) @db.Decimal(15, 2) @map("sgst_amount")
+  igstAmount                Decimal           @default(0.00) @db.Decimal(15, 2) @map("igst_amount")
+  freightAmount             Decimal           @default(0.00) @db.Decimal(15, 2) @map("freight_amount")
+  packingAmount             Decimal           @default(0.00) @db.Decimal(15, 2) @map("packing_amount")
+  otherCharges              Decimal           @default(0.00) @db.Decimal(15, 2) @map("other_charges")
+  roundOffAmount            Decimal           @default(0.00) @db.Decimal(15, 2) @map("round_off_amount")
+  grandTotal                Decimal           @default(0.00) @db.Decimal(15, 2) @map("grand_total")
+  scheduleIsPartial         Boolean           @default(false) @map("schedule_is_partial")
+  narration                 String?
+  remarks                   String?
+  termsAndConditions        String?           @map("terms_and_conditions")
+  confirmedAt               DateTime?         @map("confirmed_at")
+  cancellationReason        String?           @map("cancellation_reason")
+  cancelledAt               DateTime?         @map("cancelled_at")
+  createdAt                 DateTime          @default(now()) @map("created_at")
+  updatedAt                 DateTime          @updatedAt @map("updated_at")
+
+  company        Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  financialYear  FinancialYear        @relation(fields: [companyId, financialYearId], references: [companyId, id], onDelete: Restrict)
+  party          Party                @relation(fields: [companyId, partyId], references: [companyId, id], onDelete: Restrict)
+  lines          SalesOrderLine[]
+  schedules      SalesOrderSchedule[]
+  statusHistory  OrderStatusHistory[]
+
+  @@unique([companyId, financialYearId, orderNumber])
+  @@unique([companyId, id])
+  @@index([companyId, financialYearId, orderDate])
+  @@index([companyId, financialYearId, status])
+  @@index([companyId, financialYearId, expectedDeliveryDate])
+  @@index([companyId, partyId])
+  @@map("sales_orders")
+}
+
+model SalesOrderLine {
+  id                   String        @id @default(uuid())
+  companyId            String        @map("company_id")
+  salesOrderId         String        @map("sales_order_id")
+  lineNumber           Int           @map("line_number")
+  itemId               String?       @map("item_id")
+  itemCode             String        @map("item_code")
+  itemName             String        @map("item_name")
+  description          String?
+  yarnQualityName      String?       @map("yarn_quality_name")
+  yarnGradeName        String?       @map("yarn_grade_name")
+  yarnCount            String?       @map("yarn_count")
+  denier               String?
+  colour               String?
+  design               String?
+  specification        String?
+  unit                 UnitOfMeasure @default(KG)
+  quantity             Decimal       @db.Decimal(15, 3)
+  rate                 Decimal       @db.Decimal(15, 4)
+  discountPercent      Decimal       @default(0.00) @db.Decimal(5, 2) @map("discount_percent")
+  discountAmount       Decimal       @default(0.00) @db.Decimal(15, 2) @map("discount_amount")
+  taxableAmount        Decimal       @default(0.00) @db.Decimal(15, 2) @map("taxable_amount")
+  gstRate              Decimal       @default(0.00) @db.Decimal(5, 2) @map("gst_rate")
+  cgstAmount           Decimal       @default(0.00) @db.Decimal(15, 2) @map("cgst_amount")
+  sgstAmount           Decimal       @default(0.00) @db.Decimal(15, 2) @map("sgst_amount")
+  igstAmount           Decimal       @default(0.00) @db.Decimal(15, 2) @map("igst_amount")
+  lineTotal            Decimal       @default(0.00) @db.Decimal(15, 2) @map("line_total")
+  expectedDeliveryDate DateTime?     @map("expected_delivery_date")
+  remarks              String?
+  createdAt            DateTime      @default(now()) @map("created_at")
+  updatedAt            DateTime      @updatedAt @map("updated_at")
+
+  order     SalesOrder           @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  item      Item?                @relation(fields: [companyId, itemId], references: [companyId, id], onDelete: Restrict)
+  schedules SalesOrderSchedule[]
+
+  @@unique([salesOrderId, lineNumber])
+  @@index([companyId, itemId])
+  @@index([salesOrderId])
+  @@map("sales_order_lines")
+}
+
+model SalesOrderSchedule {
+  id               String   @id @default(uuid())
+  salesOrderId     String   @map("sales_order_id")
+  salesOrderLineId String   @map("sales_order_line_id")
+  scheduleDate     DateTime @map("schedule_date")
+  quantity         Decimal  @db.Decimal(15, 3)
+  note             String?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  order SalesOrder     @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  line  SalesOrderLine @relation(fields: [salesOrderLineId], references: [id], onDelete: Cascade)
+
+  @@index([salesOrderId, scheduleDate])
+  @@index([salesOrderLineId])
+  @@map("sales_order_schedules")
+}
+
+model PurchaseOrder {
+  id                         String              @id @default(uuid())
+  companyId                  String              @map("company_id")
+  financialYearId            String              @map("financial_year_id")
+  orderNumber                String              @map("order_number")
+  orderDate                  DateTime            @map("order_date")
+  partyId                    String              @map("party_id")
+  supplierQuotationNumber    String?             @map("supplier_quotation_number")
+  supplierQuotationDate      DateTime?           @map("supplier_quotation_date")
+  supplierReference          String?             @map("supplier_reference")
+  supplierGstin              String?             @map("supplier_gstin")
+  billingAddress             String?             @map("billing_address")
+  deliveryLocationId         String?             @map("delivery_location_id")
+  expectedDeliveryDate       DateTime?           @map("expected_delivery_date")
+  buyerName                  String?             @map("buyer_name")
+  paymentTerms               String?             @map("payment_terms")
+  deliveryTerms              String?             @map("delivery_terms")
+  freightTerms               String?             @map("freight_terms")
+  transportDetails           String?             @map("transport_details")
+  priority                   OrderPriority       @default(NORMAL)
+  status                     PurchaseOrderStatus @default(DRAFT)
+  placeOfSupplyState         String?             @map("place_of_supply_state")
+  taxType                    OrderTaxType        @default(INTRA_STATE) @map("tax_type")
+  totalQuantity              Decimal             @default(0.000) @db.Decimal(15, 3) @map("total_quantity")
+  subtotal                   Decimal             @default(0.00) @db.Decimal(15, 2)
+  discountAmount             Decimal             @default(0.00) @db.Decimal(15, 2) @map("discount_amount")
+  taxableAmount              Decimal             @default(0.00) @db.Decimal(15, 2) @map("taxable_amount")
+  cgstAmount                 Decimal             @default(0.00) @db.Decimal(15, 2) @map("cgst_amount")
+  sgstAmount                 Decimal             @default(0.00) @db.Decimal(15, 2) @map("sgst_amount")
+  igstAmount                 Decimal             @default(0.00) @db.Decimal(15, 2) @map("igst_amount")
+  freightAmount              Decimal             @default(0.00) @db.Decimal(15, 2) @map("freight_amount")
+  packingAmount              Decimal             @default(0.00) @db.Decimal(15, 2) @map("packing_amount")
+  otherCharges               Decimal             @default(0.00) @db.Decimal(15, 2) @map("other_charges")
+  roundOffAmount             Decimal             @default(0.00) @db.Decimal(15, 2) @map("round_off_amount")
+  grandTotal                 Decimal             @default(0.00) @db.Decimal(15, 2) @map("grand_total")
+  narration                  String?
+  remarks                    String?
+  termsAndConditions         String?             @map("terms_and_conditions")
+  supplierConfirmationDate   DateTime?           @map("supplier_confirmation_date")
+  approvedAt                 DateTime?           @map("approved_at")
+  sentAt                     DateTime?           @map("sent_at")
+  cancellationReason         String?             @map("cancellation_reason")
+  cancelledAt                DateTime?           @map("cancelled_at")
+  createdAt                  DateTime            @default(now()) @map("created_at")
+  updatedAt                  DateTime            @updatedAt @map("updated_at")
+
+  company          Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  financialYear    FinancialYear        @relation(fields: [companyId, financialYearId], references: [companyId, id], onDelete: Restrict)
+  party            Party                @relation(fields: [companyId, partyId], references: [companyId, id], onDelete: Restrict)
+  deliveryLocation Location?            @relation(fields: [companyId, deliveryLocationId], references: [companyId, id], onDelete: Restrict)
+  lines            PurchaseOrderLine[]
+  statusHistory    OrderStatusHistory[]
+
+  @@unique([companyId, financialYearId, orderNumber])
+  @@unique([companyId, id])
+  @@index([companyId, financialYearId, orderDate])
+  @@index([companyId, financialYearId, status])
+  @@index([companyId, financialYearId, expectedDeliveryDate])
+  @@index([companyId, partyId])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderLine {
+  id                   String        @id @default(uuid())
+  companyId            String        @map("company_id")
+  purchaseOrderId      String        @map("purchase_order_id")
+  lineNumber           Int           @map("line_number")
+  itemId               String?       @map("item_id")
+  itemCode             String        @map("item_code")
+  itemName             String        @map("item_name")
+  description          String?
+  yarnQualityName      String?       @map("yarn_quality_name")
+  yarnCount            String?       @map("yarn_count")
+  denier               String?
+  yarnGradeName        String?       @map("yarn_grade_name")
+  lotNumber            String?       @map("lot_number")
+  specification        String?
+  unit                 UnitOfMeasure @default(KG)
+  quantity             Decimal       @db.Decimal(15, 3)
+  rate                 Decimal       @db.Decimal(15, 4)
+  discountPercent      Decimal       @default(0.00) @db.Decimal(5, 2) @map("discount_percent")
+  discountAmount       Decimal       @default(0.00) @db.Decimal(15, 2) @map("discount_amount")
+  taxableAmount        Decimal       @default(0.00) @db.Decimal(15, 2) @map("taxable_amount")
+  gstRate              Decimal       @default(0.00) @db.Decimal(5, 2) @map("gst_rate")
+  cgstAmount           Decimal       @default(0.00) @db.Decimal(15, 2) @map("cgst_amount")
+  sgstAmount           Decimal       @default(0.00) @db.Decimal(15, 2) @map("sgst_amount")
+  igstAmount           Decimal       @default(0.00) @db.Decimal(15, 2) @map("igst_amount")
+  lineTotal            Decimal       @default(0.00) @db.Decimal(15, 2) @map("line_total")
+  expectedReceiptDate  DateTime?     @map("expected_receipt_date")
+  revisedDeliveryDate  DateTime?     @map("revised_delivery_date")
+  deliveryLocationId   String?       @map("delivery_location_id")
+  remarks              String?
+  createdAt            DateTime      @default(now()) @map("created_at")
+  updatedAt            DateTime      @updatedAt @map("updated_at")
+
+  order            PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  item             Item?         @relation(fields: [companyId, itemId], references: [companyId, id], onDelete: Restrict)
+  deliveryLocation Location?     @relation(fields: [companyId, deliveryLocationId], references: [companyId, id], onDelete: Restrict)
+
+  @@unique([purchaseOrderId, lineNumber])
+  @@index([companyId, itemId])
+  @@index([purchaseOrderId])
+  @@map("purchase_order_lines")
+}
+
+model OrderStatusHistory {
+  id              String             @id @default(uuid())
+  companyId       String             @map("company_id")
+  financialYearId String             @map("financial_year_id")
+  orderType       OrderDocumentType  @map("order_type")
+  salesOrderId    String?            @map("sales_order_id")
+  purchaseOrderId String?            @map("purchase_order_id")
+  action          OrderHistoryAction
+  fromStatus      String?            @map("from_status")
+  toStatus        String?            @map("to_status")
+  note            String?
+  reason          String?
+  createdAt       DateTime           @default(now()) @map("created_at")
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  financialYear FinancialYear  @relation(fields: [companyId, financialYearId], references: [companyId, id], onDelete: Cascade)
+  salesOrder    SalesOrder?    @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, orderType, salesOrderId, createdAt])
+  @@index([companyId, orderType, purchaseOrderId, createdAt])
+  @@map("order_status_history")
+}
+
+model OrderFulfilmentLink {
+  id              String                      @id @default(uuid())
+  companyId       String                      @map("company_id")
+  financialYearId String                      @map("financial_year_id")
+  orderType       OrderDocumentType           @map("order_type")
+  orderId         String                      @map("order_id")
+  orderLineId     String                      @map("order_line_id")
+  documentType    OrderFulfilmentDocumentType @map("document_type")
+  documentId      String                      @map("document_id")
+  documentNumber  String                      @map("document_number")
+  documentDate    DateTime                    @map("document_date")
+  quantity        Decimal                     @db.Decimal(15, 3)
+  remarks         String?
+  createdAt       DateTime                    @default(now()) @map("created_at")
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  financialYear FinancialYear @relation(fields: [companyId, financialYearId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, orderType, orderLineId, documentType, documentId])
+  @@index([companyId, orderType, orderId])
+  @@map("order_fulfilment_links")
 }

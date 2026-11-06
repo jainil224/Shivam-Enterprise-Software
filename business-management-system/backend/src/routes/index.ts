@@ -8,6 +8,9 @@ import gstinRoutes from './gstinRoutes.js';
 import purchaseBillRoutes from './purchaseBillRoutes.js';
 import ledgerAccountRoutes from './ledgerAccountRoutes.js';
 import { createBankVoucherRoutes } from './bankVoucherRoutes.js';
+import itemRoutes from './itemRoutes.js';
+import salesOrderRoutes from './salesOrderRoutes.js';
+import purchaseOrderRoutes from './purchaseOrderRoutes.js';
 
 const router = Router();
 
@@ -34,5 +37,10 @@ router.use('/transactions/purchase-bills', purchaseBillRoutes);
 router.use('/ledger-accounts', ledgerAccountRoutes);
 router.use('/bank-receipts', createBankVoucherRoutes('RECEIPT'));
 router.use('/bank-payments', createBankVoucherRoutes('PAYMENT'));
+
+// Item Master & Sales / Purchase Orders (Phase 13)
+router.use('/items', itemRoutes);
+router.use('/sales-orders', salesOrderRoutes);
+router.use('/purchase-orders', purchaseOrderRoutes);
 
 export default router;

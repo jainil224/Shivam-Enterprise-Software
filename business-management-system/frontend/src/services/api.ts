@@ -24,6 +24,23 @@ import {
   PaymentMode,
 } from '../types';
 
+import type {
+  Item,
+  ItemLookups,
+  ItemPayload,
+  OrderDocumentType,
+  OrderListParams,
+  OrderListResult,
+  OrderLookups,
+  OrderPayload,
+  OrderReportDefinition,
+  OrderReportResult,
+  OrderStatusHistoryEntry,
+  OrderSummary,
+  PurchaseOrder,
+  SalesOrder,
+} from '../types/orders';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export const apiClient = axios.create({
@@ -745,3 +762,214 @@ export const cancelBankVoucher = async (
 };
 
 export type BankPaymentMode = PaymentMode;
+
+
+export const getItemLookups = async (): Promise<ItemLookups> => {
+  const response = await apiClient.get<ApiResponse<ItemLookups>>('/items/lookups');
+  return response.data.data;
+};
+
+export const getItems = async (params?: {
+  search?: string;
+  itemType?: string;
+  includeInactive?: boolean;
+}): Promise<Item[]> => {
+  const response = await apiClient.get<ApiResponse<Item[]>>('/items', { params });
+  return response.data.data;
+};
+
+export const getItem = async (id: string): Promise<Item> => {
+  const response = await apiClient.get<ApiResponse<Item>>(`/items/${id}`);
+  return response.data.data;
+};
+
+export const createItem = async (payload: ItemPayload): Promise<Item> => {
+  const response = await apiClient.post<ApiResponse<Item>>('/items', payload);
+  return response.data.data;
+};
+
+export const updateItem = async (id: string, payload: ItemPayload): Promise<Item> => {
+  const response = await apiClient.put<ApiResponse<Item>>(`/items/${id}`, payload);
+  return response.data.data;
+};
+
+export const setItemStatus = async (id: string, isActive: boolean): Promise<Item> => {
+  const response = await apiClient.patch<ApiResponse<Item>>(`/items/${id}/status`, { isActive });
+  return response.data.data;
+};
+
+const orderBase = (documentType: OrderDocumentType): string =>
+  documentType === 'SALES_ORDER' ? '/sales-orders' : '/purchase-orders';
+
+export const getOrderLookups = async (documentType: OrderDocumentType): Promise<OrderLookups> => {
+  const response = await apiClient.get<ApiResponse<OrderLookups>>(
+    `${orderBase(documentType)}/lookups`
+  );
+  return response.data.data;
+};
+
+export const getNextOrderNumber = async (
+  documentType: OrderDocumentType
+): Promise<{ orderNumber: string }> => {
+  const response = await apiClient.get<ApiResponse<{ orderNumber: string }>>(
+    `${orderBase(documentType)}/next-number`
+  );
+  return response.data.data;
+};
+
+export const getOrderSummary = async (
+  documentType: OrderDocumentType
+): Promise<OrderSummary> => {
+  const response = await apiClient.get<ApiResponse<OrderSummary>>(
+    `${orderBase(documentType)}/summary`
+  );
+  return response.data.data;
+};
+
+export const listSalesOrders = async (
+  params?: OrderListParams
+): Promise<OrderListResult<SalesOrder>> => {
+  const response = await apiClient.get<any>('/sales-orders', { params });
+  return {
+    items: (response.data.items ?? response.data.data ?? []) as SalesOrder[],
+    total: Number(response.data.total ?? 0),
+    page: Number(response.data.page ?? 1),
+    limit: Number(response.data.limit ?? 20),
+    totalPages: Number(response.data.totalPages ?? 1),
+    totalAmount: String(response.data.totalAmount ?? '0.00'),
+    totalQuantity: String(response.data.totalQuantity ?? '0.000'),
+  };
+};
+
+export const listPurchaseOrders = async (
+  params?: OrderListParams
+): Promise<OrderListResult<PurchaseOrder>> => {
+  const response = await apiClient.get<any>('/purchase-orders', { params });
+  return {
+    items: (response.data.items ?? response.data.data ?? []) as PurchaseOrder[],
+    total: Number(response.data.total ?? 0),
+    page: Number(response.data.page ?? 1),
+    limit: Number(response.data.limit ?? 20),
+    totalPages: Number(response.data.totalPages ?? 1),
+    totalAmount: String(response.data.totalAmount ?? '0.00'),
+    totalQuantity: String(response.data.totalQuantity ?? '0.000'),
+  };
+};
+
+export const getSalesOrder = async (id: string): Promise<SalesOrder> => {
+  const response = await apiClient.get<ApiResponse<SalesOrder>>(`/sales-orders/${id}`);
+  return response.data.data;
+};
+
+export const getPurchaseOrder = async (id: string): Promise<PurchaseOrder> => {
+  const response = await apiClient.get<ApiResponse<PurchaseOrder>>(`/purchase-orders/${id}`);
+  return response.data.data;
+};
+
+export const createOrder = async (
+  documentType: OrderDocumentType,
+  payload: OrderPayload
+): Promise<SalesOrder | PurchaseOrder> => {
+  const response = await apiClient.post<ApiResponse<SalesOrder | PurchaseOrder>>(
+    orderBase(documentType),
+    payload
+  );
+  return response.data.data;
+};
+
+export const updateOrder = async (
+  documentType: OrderDocumentType,
+  id: string,
+  payload: OrderPayload
+): Promise<SalesOrder | PurchaseOrder> => {
+  const response = await apiClient.put<ApiResponse<SalesOrder | PurchaseOrder>>(
+    `${orderBase(documentType)}/${id}`,
+    payload
+  );
+  return response.data.data;
+};
+
+export const confirmSalesOrder = async (id: string): Promise<SalesOrder> => {
+  const response = await apiClient.post<ApiResponse<SalesOrder>>(`/sales-orders/${id}/confirm`);
+  return response.data.data;
+};
+
+export const approvePurchaseOrder = async (id: string): Promise<PurchaseOrder> => {
+  const response = await apiClient.post<ApiResponse<PurchaseOrder>>(
+    `/purchase-orders/${id}/approve`
+  );
+  return response.data.data;
+};
+
+export const sendPurchaseOrder = async (id: string): Promise<PurchaseOrder> => {
+  const response = await apiClient.post<ApiResponse<PurchaseOrder>>(`/purchase-orders/${id}/send`);
+  return response.data.data;
+};
+
+export const acknowledgePurchaseOrder = async (id: string): Promise<PurchaseOrder> => {
+  const response = await apiClient.post<ApiResponse<PurchaseOrder>>(
+    `/purchase-orders/${id}/acknowledge`
+  );
+  return response.data.data;
+};
+
+export const cancelOrder = async (
+  documentType: OrderDocumentType,
+  id: string,
+  reason: string
+): Promise<SalesOrder | PurchaseOrder> => {
+  const response = await apiClient.post<ApiResponse<SalesOrder | PurchaseOrder>>(
+    `${orderBase(documentType)}/${id}/cancel`,
+    { reason }
+  );
+  return response.data.data;
+};
+
+export const copyOrder = async (
+  documentType: OrderDocumentType,
+  id: string
+): Promise<SalesOrder | PurchaseOrder> => {
+  const response = await apiClient.post<ApiResponse<SalesOrder | PurchaseOrder>>(
+    `${orderBase(documentType)}/${id}/copy`
+  );
+  return response.data.data;
+};
+
+export const getOrderHistory = async (
+  documentType: OrderDocumentType,
+  id: string
+): Promise<OrderStatusHistoryEntry[]> => {
+  const response = await apiClient.get<ApiResponse<OrderStatusHistoryEntry[]>>(
+    `${orderBase(documentType)}/${id}/history`
+  );
+  return response.data.data;
+};
+
+export const getOrderReports = async (
+  documentType: OrderDocumentType
+): Promise<OrderReportDefinition[]> => {
+  const response = await apiClient.get<ApiResponse<OrderReportDefinition[]>>(
+    `${orderBase(documentType)}/reports`
+  );
+  return response.data.data;
+};
+
+export const runOrderReport = async (
+  documentType: OrderDocumentType,
+  reportKey: string,
+  params?: {
+    fromDate?: string;
+    toDate?: string;
+    partyId?: string;
+    itemId?: string;
+    status?: string;
+    search?: string;
+    overdue?: boolean;
+  }
+): Promise<OrderReportResult> => {
+  const response = await apiClient.get<ApiResponse<OrderReportResult>>(
+    `${orderBase(documentType)}/reports/${reportKey}`,
+    { params }
+  );
+  return response.data.data;
+};
