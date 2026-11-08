@@ -827,15 +827,74 @@ async function runSectionD(ctx: SuiteContext): Promise<void> {
   assert(close(Number(tcsNote.tcsAmount), 50), 'Explicit TCS amount is persisted');
   assert(close(Number(tcsNote.totalAmount), 150), 'TCS is added to the grand total');
 
+  // TDS is enabled: the rate is entered by the user, the amount is always derived
+  // from the taxable value and the deduction is posted to a TDS receivable ledger.
+  const tdsNote = await debitNotes.create(
+    ctx.companyId,
+    ctx.financialYearId,
+    payload(ctx, {
+      reason: 'INTEREST',
+      gstRate: 0,
+      tdsRate: 2,
+      tdsSection: '194c',
+      tdsAccount: 'TDS Receivable',
+      billLines: [
+        line({ billNo: 'PB-TDS', billDate: '2026-10-01', billTaxable: 1000, billAmount: 1000, unpaidAmount: 1000, rate: 0, basicAmount: 1000 }),
+      ],
+    })
+  );
+  assert(close(Number(tdsNote.tdsRate), 2), 'TDS rate is persisted');
+  assert(close(Number(tdsNote.tdsAmount), 20), 'TDS amount is derived from the taxable value (2% of 1000)');
+  assert(tdsNote.tdsSection === '194C', 'TDS section is stored in upper case');
+  assert(tdsNote.tdsAccount === 'TDS Receivable', 'TDS account label is persisted');
+  assert(close(Number(tdsNote.totalAmount), 1000), 'TDS does not change the Debit Note total');
+
+  const tdsLedger = await prisma.ledgerAccount.findFirst({
+    where: { companyId: ctx.companyId, accountCode: 'TDS-RECEIVABLE' },
+  });
+  assert(Boolean(tdsLedger), 'TDS receivable ledger is auto-provisioned');
+  assert(
+    tdsLedger!.accountGroup === 'ASSETS' && tdsLedger!.accountType === 'ASSET' && tdsLedger!.balanceType === 'DEBIT',
+    'TDS ledger is an asset with a debit balance type'
+  );
+
+  const tdsNet = await netByLedger(tdsNote.id);
+  assert(close(tdsNet.get(tdsLedger!.id) || 0, 20), 'TDS receivable is debited with the deducted amount');
+  const tdsPartyLedger = await prisma.ledgerAccount.findFirst({
+    where: { companyId: ctx.companyId, partyId: ctx.supplierGujaratId },
+  });
+  assert(close(tdsNet.get(tdsPartyLedger!.id) || 0, 980), 'Party debit is reduced by the TDS amount (980)');
+
+  const tdsJournal = await prisma.journalLine.findMany({ where: { debitNoteId: tdsNote.id } });
+  const tdsDebit = tdsJournal.reduce((sum, row) => sum + Number(row.debitAmount), 0);
+  const tdsCredit = tdsJournal.reduce((sum, row) => sum + Number(row.creditAmount), 0);
+  assert(close(tdsDebit, tdsCredit), 'Journal with TDS stays balanced');
+
+  // An explicit TDS amount is honoured only when the rate is zero (no rate is inferred).
+  const explicitTdsNote = await debitNotes.create(
+    ctx.companyId,
+    ctx.financialYearId,
+    payload(ctx, {
+      reason: 'INTEREST',
+      gstRate: 0,
+      tdsRate: 0,
+      tdsAmount: 30,
+      billLines: [
+        line({ billNo: 'PB-TDS2', billDate: '2026-10-02', billTaxable: 500, billAmount: 500, unpaidAmount: 500, rate: 0, basicAmount: 500 }),
+      ],
+    })
+  );
+  assert(close(Number(explicitTdsNote.tdsAmount), 30), 'Explicit TDS amount is honoured when the rate is zero');
+
   await expectError(
-    () => debitNotes.create(ctx.companyId, ctx.financialYearId, payload(ctx, { tdsRate: 1 })),
+    () => debitNotes.create(ctx.companyId, ctx.financialYearId, payload(ctx, { tdsRate: 150 })),
     400,
-    'Non-zero TDS rate is rejected because TDS is not configured'
+    'TDS rate above 100% is rejected'
   );
   await expectError(
-    () => debitNotes.create(ctx.companyId, ctx.financialYearId, payload(ctx, { tdsAmount: 100 })),
+    () => debitNotes.create(ctx.companyId, ctx.financialYearId, payload(ctx, { tdsAmount: -5 })),
     400,
-    'Non-zero TDS amount is rejected because TDS is not configured'
+    'Negative TDS amount is rejected'
   );
 
   // Over-adjustment guard: bill B is worth 5250 and is fully adjusted by the first note.
@@ -1053,6 +1112,7 @@ async function runSectionF(): Promise<void> {
   assert(printSrc.includes('line.basicAmount'), 'Note Amount is printed');
   assert(printSrc.includes('Basic Amount') && printSrc.includes('Taxable Value'), 'Basic Amount and Taxable Value are printed');
   assert(printSrc.includes('CGST') && printSrc.includes('SGST') && printSrc.includes('IGST') && printSrc.includes('TCS (+)'), 'GST and TCS rows are printed');
+  assert(printSrc.includes('TDS (-)') && printSrc.includes('Net Receivable'), 'TDS deduction and net receivable rows are printed');
   assert(printSrc.includes('amountInWords'), 'Amount in words is printed');
   assert(printSrc.includes("isLandscape ? 'landscape' : 'portrait'"), 'Portrait is the default and landscape is supported');
   assert(printSrc.includes('@page { size: A4'), 'A4 @page print CSS is present');
@@ -1074,7 +1134,9 @@ async function runSectionF(): Promise<void> {
   assert(entrySrc.includes("case 'Escape'"), 'Escape returns or closes popups');
   assert(entrySrc.includes("case '7'") && entrySrc.includes("case '8'"), '7/8 previous/next shortcuts are wired');
   assert(entrySrc.includes('handleGridEnterKey') && entrySrc.includes('onKeyDown={handleGridEnterKey}'), 'Enter inside the grid moves focus instead of submitting');
-  assert(entrySrc.includes('disabled') && entrySrc.includes('TDS not configured'), 'TDS inputs are disabled with an explicit notice');
+  assert(!entrySrc.includes('TDS not configured'), 'TDS is no longer disabled with a notice');
+  assert(entrySrc.includes('calculations.tdsRate') && entrySrc.includes('calculations.tdsAmount'), 'TDS rate drives the derived amount in the entry page');
+  assert(entrySrc.includes('tdsSection.trim()') && entrySrc.includes('tdsAccount.trim()'), 'TDS section and account are submitted with the note');
   assert(entrySrc.includes('reason === \'TCS\''), 'TCS amount input is shown only for the TCS reason');
 
   assert(apiSrc.includes("'/transactions/debit-notes/next-number'"), 'Next-number endpoint exists in the API client');

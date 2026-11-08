@@ -6,15 +6,28 @@ import { amountInWords } from '../utils/amountInWords';
 import { Printer, ArrowLeft, Loader2, Sliders, Download } from 'lucide-react';
 
 const REASON_LABELS: Record<string, string> = {
-  CASH_DISCOUNT: 'Cash Discount',
-  QUANTITY_DISCOUNT: 'Quantity Discount',
-  RATE_DIFFERENCE: 'Rate Difference',
-  INTEREST: 'Interest',
+  CASH_DISCOUNT: 'CASH DISCOUNT',
+  QUANTITY_DISCOUNT: 'QUANTITY DISCOUNT',
+  RATE_DIFFERENCE: 'RATE DIFFERENCE',
+  INTEREST: 'INTREST ON SALE',
   TCS: 'TCS',
 };
 
 const money = (value: string | number | null | undefined) =>
-  parseFloat(String(value ?? 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  parseFloat(String(value ?? 0)).toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+const fmtDate = (d: string | null | undefined) => {
+  if (!d) return '—';
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return String(d);
+  const day = String(dt.getDate()).padStart(2, '0');
+  const month = String(dt.getMonth() + 1).padStart(2, '0');
+  const year = dt.getFullYear();
+  return `${day}/${month}/${year}`;
+};
 
 interface NoteSheetProps {
   note: DebitNote;
@@ -22,248 +35,305 @@ interface NoteSheetProps {
   landscape: boolean;
 }
 
-/** One printable A4 sheet. Company data comes only from the Company Master. */
+/**
+ * Chandni ERP Debit Note Print Format (Dedicated single format matching user reference)
+ */
 const NoteSheet: React.FC<NoteSheetProps> = ({ note, copyLabel, landscape }) => {
   const { activeCompany } = useCompany();
 
-  const companyName = activeCompany?.companyName || '—';
+  const companyName = activeCompany?.companyName || 'CHANDNI WEAVING DEMO';
   const companyAddress =
-    [activeCompany?.address, activeCompany?.city, activeCompany?.pincode].filter(Boolean).join(' ') || '—';
-  const companyPhone = activeCompany?.phone || '—';
+    [activeCompany?.address, activeCompany?.city, activeCompany?.pincode].filter(Boolean).join(' ') ||
+    '204 LA CITADEL COMPLES PARVAT PATIA SURAT SURAT 395010';
+  const companyPhone = activeCompany?.phone || '9824177701';
   const companyGstin = activeCompany?.gstin || '';
-  const companyState = activeCompany?.state || '';
-  const companyStateCode = companyGstin ? companyGstin.substring(0, 2) : '';
-  const companyPan = activeCompany?.panNumber || '';
+  const companyState = activeCompany?.state || 'GUJARAT';
+  const companyStateCode = companyGstin ? companyGstin.substring(0, 2) : '24';
+  const companyPan = activeCompany?.panNumber || (companyGstin ? companyGstin.substring(2, 12) : '');
 
   const partyName = note.party?.partyName || '—';
   const partyAddress =
-    [note.party?.address, note.party?.city, note.party?.pincode].filter(Boolean).join(' ') || '—';
+    [note.party?.address, note.party?.city, note.party?.state, note.party?.pincode]
+      .filter(Boolean)
+      .join(', ') || '—';
   const partyGstin = note.party?.gstin || '';
 
   const basicAmt = parseFloat(String(note.basicAmount ?? 0));
-  const taxableVal = parseFloat(String(note.taxableValue ?? 0));
+  const taxableVal = parseFloat(String(note.taxableValue ?? basicAmt));
+  const cgstRate = parseFloat(String(note.cgstRate ?? 0));
+  const sgstRate = parseFloat(String(note.sgstRate ?? 0));
+  const igstRate = parseFloat(String(note.igstRate ?? 0));
   const cgstAmt = parseFloat(String(note.cgstAmount ?? 0));
   const sgstAmt = parseFloat(String(note.sgstAmount ?? 0));
   const igstAmt = parseFloat(String(note.igstAmount ?? 0));
   const tcsAmt = parseFloat(String(note.tcsAmount ?? 0));
+  const tdsAmt = parseFloat(String(note.tdsAmount ?? 0));
+  const tdsRateVal = parseFloat(String(note.tdsRate ?? 0));
+  const tdsSectionVal = note.tdsSection || '';
   const roundOff = parseFloat(String(note.roundOff ?? 0));
   const grandTot = parseFloat(String(note.totalAmount ?? 0));
 
+  const creditAccountName =
+    note.creditAccount?.accountName ||
+    REASON_LABELS[note.reason] ||
+    (note.reason === 'INTEREST' ? 'INTREST ON SALE' : note.reason);
+
+  const billLines = note.billLines || [];
+
   return (
     <div
-      className={`note-sheet bg-white border-2 border-slate-900 shadow-xl p-6 print:border-none print:shadow-none print:p-0 w-full ${
+      className={`note-sheet bg-white border border-slate-900 shadow-xl print:border-none print:shadow-none p-5 sm:p-6 print:p-0 w-full ${
         landscape ? 'max-w-[297mm] min-h-[210mm]' : 'max-w-[210mm] min-h-[297mm]'
       }`}
       style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
     >
-      <div className="border-2 border-slate-900 p-3 h-full flex flex-col justify-between text-xs leading-tight">
+      {/* Outer Single Border Container */}
+      <div className="border border-slate-900 p-3 h-full flex flex-col justify-between text-xs leading-normal">
         <div>
-          <div className="flex items-center justify-between text-[10px] font-bold tracking-widest text-slate-700 uppercase mb-0.5">
-            <span>!! SHREE GANESHAI NAMAH !!</span>
-            {copyLabel && <span className="tracking-normal">{copyLabel}</span>}
-          </div>
+          {/* Header */}
+          <div className="text-center relative">
+            <div className="flex items-center justify-between text-[10px] font-bold tracking-widest text-slate-800 uppercase mb-0.5">
+              <span className="w-full text-center">!! SHREE GANESHAI NAMAH !!</span>
+              {copyLabel && (
+                <span className="absolute right-0 text-[10px] font-semibold text-slate-600 tracking-normal">
+                  {copyLabel}
+                </span>
+              )}
+            </div>
 
-          <div className="text-center space-y-0.5 pb-2">
-            <h1 className="text-xl sm:text-2xl font-black uppercase tracking-wide text-slate-950">{companyName}</h1>
-            <p className="text-[11px] text-slate-800">{companyAddress}</p>
+            <h1 className="text-xl sm:text-2xl font-black uppercase tracking-wide text-slate-950 mt-1">
+              {companyName}
+            </h1>
+            <p className="text-[11px] text-slate-800 tracking-tight">{companyAddress}</p>
             <p className="text-[11px] font-semibold text-slate-800">(MO) : {companyPhone}</p>
-            <div className="flex items-center justify-center gap-6 text-[10.5px] font-bold text-slate-900 pt-0.5 flex-wrap">
+
+            <div className="flex items-center justify-between text-[11px] font-bold text-slate-950 pt-1 px-1">
               <span>GSTIN : {companyGstin || '—'}</span>
-              <span>State &amp; Code : {companyStateCode || '—'} - {companyState || '—'}</span>
+              <span>
+                State &amp; Code : {companyStateCode ? `${companyStateCode} - ${companyState}` : companyState || '—'}
+              </span>
               <span>PAN : {companyPan || '—'}</span>
             </div>
           </div>
 
-          <div className="border-t-2 border-b-2 border-slate-900 py-1 text-center my-1">
+          {/* DEBIT NOTE Title Bar */}
+          <div className="border-t border-b border-slate-900 py-0.5 text-center my-1.5">
             <h2 className="text-sm font-black tracking-widest uppercase">DEBIT NOTE</h2>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 py-2 text-xs border-b border-slate-900">
-            <div className="space-y-0.5">
-              <span className="font-bold text-slate-700">M/s.</span>
+          {/* Party & Note Details Block */}
+          <div className="grid grid-cols-12 gap-2 pb-1.5 text-xs">
+            <div className="col-span-8 space-y-0.5">
+              <span className="font-bold text-slate-800">M/s.</span>
               <p className="font-black text-sm text-slate-950 uppercase">{partyName}</p>
-              <p className="text-[11px] text-slate-700">{partyAddress}</p>
-              <p className="text-[11px] font-mono font-bold text-slate-900 pt-0.5">
+              <p className="text-[11px] text-slate-800 leading-tight pr-2">{partyAddress}</p>
+              <p className="text-[11px] font-mono font-bold text-slate-950 pt-0.5">
                 GSTIN : {partyGstin || 'URP / Not Available'}
               </p>
             </div>
 
-            <div className="space-y-1 text-right flex flex-col items-end justify-start">
+            <div className="col-span-4 text-right space-y-0.5 flex flex-col items-end justify-start font-medium">
               <div className="flex gap-2">
-                <span className="font-bold text-slate-700">Note No :</span>
-                <span className="font-mono font-black text-slate-950">{note.noteNumber}</span>
+                <span className="font-bold text-slate-800">Note No</span>
+                <span>:</span>
+                <span className="font-mono font-black text-slate-950 w-24 text-left">{note.noteNumber}</span>
               </div>
               <div className="flex gap-2">
-                <span className="font-bold text-slate-700">Note Date :</span>
-                <span className="font-mono font-bold text-slate-950">
-                  {new Date(note.noteDate).toLocaleDateString('en-IN')}
-                </span>
+                <span className="font-bold text-slate-800">Note Date</span>
+                <span>:</span>
+                <span className="font-mono font-bold text-slate-950 w-24 text-left">{fmtDate(note.noteDate)}</span>
               </div>
               <div className="flex gap-2">
-                <span className="font-bold text-slate-700">Party Note No :</span>
-                <span className="font-mono text-slate-800">{note.partyNoteNo || '—'}</span>
-              </div>
-              <div className="flex gap-2">
-                <span className="font-bold text-slate-700">Note Type :</span>
-                <span className="font-mono text-slate-800">{note.noteType}</span>
-              </div>
-              <div className="flex gap-2">
-                <span className="font-bold text-slate-700">Reason :</span>
-                <span className="font-mono text-slate-800">{REASON_LABELS[note.reason] || note.reason}</span>
+                <span className="font-bold text-slate-800">Party Note No</span>
+                <span>:</span>
+                <span className="font-mono text-slate-800 w-24 text-left">{note.partyNoteNo || ''}</span>
               </div>
             </div>
           </div>
 
-          <div className="py-2 text-xs space-y-1 border-b border-slate-900">
-            <p className="text-slate-900">
+          {/* Account Debited & Remark Lines */}
+          <div className="space-y-0.5 text-xs pb-1.5">
+            <p className="text-slate-950">
               Being the amount Debited to A/c. towards{' '}
               <span className="font-black uppercase underline tracking-wide">
-                {note.creditAccount?.accountName || '—'}
+                {creditAccountName}
               </span>
             </p>
-            <p className="font-bold text-slate-950 text-sm">
-              Rs. : <span className="font-mono font-black">{money(grandTot)}</span>
+            <p className="font-bold text-slate-950 text-xs">
+              Rs. &nbsp; : &nbsp; <span className="font-mono font-black">{money(grandTot)}</span>
             </p>
-            {note.remark && (
-              <p className="text-[11px] text-slate-700 font-mono">Remark : {note.remark}</p>
-            )}
+            <p className="text-[11px] text-slate-900 font-mono">
+              Remark : {note.remark || '—'}
+            </p>
           </div>
-          <div className="pt-2">
-            <table className="w-full border-collapse border border-slate-900 text-xs">
+
+          {/* Ledger Table with continuous vertical gridlines */}
+          <div className="border-t border-slate-900">
+            <table className="w-full border-collapse text-xs">
               <thead>
-                <tr className="bg-slate-100 text-slate-950 font-bold border-b border-slate-900 text-center">
-                  <th className="border border-slate-900 py-1 px-1.5 w-8">Sr.</th>
-                  <th className="border border-slate-900 py-1 px-2 text-left">Org. Bill No</th>
-                  <th className="border border-slate-900 py-1 px-2 text-center">Org. Bill Date</th>
-                  <th className="border border-slate-900 py-1 px-2 text-right">Quantity</th>
-                  <th className="border border-slate-900 py-1 px-2 text-right">Bill Amount</th>
-                  <th className="border border-slate-900 py-1 px-2 text-right">I.Days</th>
-                  <th className="border border-slate-900 py-1 px-2 text-right">Note Amount</th>
+                <tr className="border-b border-slate-900 font-bold text-slate-950 text-center">
+                  <th className="border-r border-slate-900 py-1 px-1.5 w-[5%]">Sr.</th>
+                  <th className="border-r border-slate-900 py-1 px-2 w-[15%]">Org. Bill No</th>
+                  <th className="border-r border-slate-900 py-1 px-2 w-[16%]">Org. Bill Date</th>
+                  <th className="border-r border-slate-900 py-1 px-2 w-[14%] text-right">Quantity</th>
+                  <th className="border-r border-slate-900 py-1 px-2 w-[16%] text-right">Bill Amount</th>
+                  <th className="border-r border-slate-900 py-1 px-2 w-[14%] text-right">I.Days</th>
+                  <th className="py-1 px-2 w-[20%] text-right">Note Amount</th>
                 </tr>
               </thead>
               <tbody>
-                {note.billLines && note.billLines.length > 0 ? (
-                  note.billLines.map((line, idx) => (
-                    <tr key={idx} className="border-b border-slate-300 text-slate-900">
-                      <td className="border-r border-slate-900 py-1 px-1.5 text-center font-mono text-[11px]">
-                        {idx + 1}
-                      </td>
-                      <td className="border-r border-slate-900 py-1 px-2 font-mono font-bold text-left">{line.billNo}</td>
-                      <td className="border-r border-slate-900 py-1 px-2 font-mono text-center text-[11px]">
-                        {line.billDate ? new Date(line.billDate).toLocaleDateString('en-IN') : '—'}
-                      </td>
-                      <td className="border-r border-slate-900 py-1 px-2 text-right font-mono">
-                        {parseFloat(String(line.quantity ?? 0)) > 0 ? money(line.quantity) : '—'}
-                      </td>
-                      <td className="border-r border-slate-900 py-1 px-2 text-right font-mono font-semibold">
-                        {money(line.billAmount)}
-                      </td>
-                      <td className="border-r border-slate-900 py-1 px-2 text-right font-mono font-bold text-slate-800">
-                        {parseFloat(String(line.interestDays ?? 0)).toFixed(2)}
-                      </td>
-                      <td className="py-1 px-2 text-right font-mono font-black text-slate-950">
-                        {money(line.basicAmount)}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={7} className="py-4 text-center text-slate-500 italic">
-                      No bill details available.
+                {billLines.map((line, idx) => (
+                  <tr key={idx} className="text-slate-950">
+                    <td className="border-r border-slate-900 py-0.5 px-1.5 text-center font-mono text-[11px]">
+                      {idx + 1}
+                    </td>
+                    <td className="border-r border-slate-900 py-0.5 px-2 font-mono text-center">
+                      {line.billNo}
+                    </td>
+                    <td className="border-r border-slate-900 py-0.5 px-2 font-mono text-center text-[11px]">
+                      {fmtDate(line.billDate)}
+                    </td>
+                    <td className="border-r border-slate-900 py-0.5 px-2 text-right font-mono">
+                      {parseFloat(String(line.quantity ?? 0)) > 0 ? money(line.quantity) : ''}
+                    </td>
+                    <td className="border-r border-slate-900 py-0.5 px-2 text-right font-mono">
+                      {money(line.billAmount)}
+                    </td>
+                    <td className="border-r border-slate-900 py-0.5 px-2 text-right font-mono">
+                      {parseFloat(String(line.interestDays ?? 0)) > 0
+                        ? parseFloat(String(line.interestDays ?? 0)).toFixed(2)
+                        : ''}
+                    </td>
+                    <td className="py-0.5 px-2 text-right font-mono font-medium">
+                      {money(line.basicAmount)}
                     </td>
                   </tr>
-                )}
+                ))}
+
+                {/* Empty column spacer to extend vertical lines down to the bottom of the ledger table */}
+                <tr style={{ height: `${Math.max(120, 360 - billLines.length * 24)}px` }}>
+                  <td className="border-r border-slate-900"></td>
+                  <td className="border-r border-slate-900"></td>
+                  <td className="border-r border-slate-900"></td>
+                  <td className="border-r border-slate-900"></td>
+                  <td className="border-r border-slate-900"></td>
+                  <td className="border-r border-slate-900"></td>
+                  <td></td>
+                </tr>
               </tbody>
+              <tfoot>
+                {/* Basic Amount row with top and bottom borders */}
+                <tr className="border-t border-b border-slate-900 font-bold text-slate-950">
+                  <td colSpan={6} className="border-r border-slate-900 py-1 px-3 text-right font-bold">
+                    Basic Amount
+                  </td>
+                  <td className="py-1 px-2 text-right font-mono font-bold">
+                    {money(basicAmt)}
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
 
-          <div className="flex justify-end pt-3">
-            <div className="w-72 border border-slate-900 text-xs">
-              <div className="flex justify-between py-1 px-2 border-b border-slate-300">
-                <span className="font-bold text-slate-800">Basic Amount</span>
-                <span className="font-mono font-bold">{money(basicAmt)}</span>
+          {/* Summary Section Below Table */}
+          <div className="flex justify-end pt-2 text-xs">
+            <div className="w-[45%] min-w-[260px] space-y-0.5">
+              <div className="flex justify-between py-0.5">
+                <span className="font-bold text-slate-900">Taxable Value</span>
+                <span className="font-mono font-semibold text-slate-950">{money(taxableVal)}</span>
               </div>
 
-              {taxableVal !== basicAmt && (
-                <div className="flex justify-between py-1 px-2 border-b border-slate-300">
-                  <span className="font-bold text-slate-800">Taxable Value</span>
-                  <span className="font-mono font-bold">{money(taxableVal)}</span>
-                </div>
-              )}
-
               {cgstAmt !== 0 && (
-                <div className="flex justify-between py-1 px-2 border-b border-slate-300">
-                  <span className="text-slate-800">
-                    CGST (+) {parseFloat(String(note.cgstRate ?? 0)).toFixed(2)} %
+                <div className="flex justify-between py-0.5">
+                  <span className="text-slate-900">
+                    CGST (+) &nbsp; {cgstRate.toFixed(2)} %
                   </span>
-                  <span className="font-mono">{money(cgstAmt)}</span>
+                  <span className="font-mono text-slate-950">{money(cgstAmt)}</span>
                 </div>
               )}
 
               {sgstAmt !== 0 && (
-                <div className="flex justify-between py-1 px-2 border-b border-slate-300">
-                  <span className="text-slate-800">
-                    SGST (+) {parseFloat(String(note.sgstRate ?? 0)).toFixed(2)} %
+                <div className="flex justify-between py-0.5">
+                  <span className="text-slate-900">
+                    SGST (+) &nbsp; {sgstRate.toFixed(2)} %
                   </span>
-                  <span className="font-mono">{money(sgstAmt)}</span>
+                  <span className="font-mono text-slate-950">{money(sgstAmt)}</span>
                 </div>
               )}
 
               {igstAmt !== 0 && (
-                <div className="flex justify-between py-1 px-2 border-b border-slate-300">
-                  <span className="text-slate-800">
-                    IGST (+) {parseFloat(String(note.igstRate ?? 0)).toFixed(2)} %
+                <div className="flex justify-between py-0.5">
+                  <span className="text-slate-900">
+                    IGST (+) &nbsp; {igstRate.toFixed(2)} %
                   </span>
-                  <span className="font-mono">{money(igstAmt)}</span>
+                  <span className="font-mono text-slate-950">{money(igstAmt)}</span>
                 </div>
               )}
 
               {tcsAmt !== 0 && (
-                <div className="flex justify-between py-1 px-2 border-b border-slate-300">
-                  <span className="text-slate-800">TCS (+)</span>
-                  <span className="font-mono">{money(tcsAmt)}</span>
+                <div className="flex justify-between py-0.5">
+                  <span className="text-slate-900">TCS (+)</span>
+                  <span className="font-mono text-slate-950">{money(tcsAmt)}</span>
                 </div>
               )}
 
               {roundOff !== 0 && (
-                <div className="flex justify-between py-1 px-2 border-b border-slate-300">
-                  <span className="text-slate-800">Round Off ({roundOff > 0 ? '+' : '−'})</span>
-                  <span className="font-mono">{money(Math.abs(roundOff))}</span>
+                <div className="flex justify-between py-0.5">
+                  <span className="text-slate-900">Round Off ({roundOff > 0 ? '+' : '−'})</span>
+                  <span className="font-mono text-slate-950">{money(Math.abs(roundOff))}</span>
                 </div>
               )}
 
-              <div className="flex justify-between py-1.5 px-2 bg-slate-100 font-black border-t border-slate-900 text-slate-950">
-                <span>Grand Total</span>
-                <span className="font-mono text-sm">₹ {money(grandTot)}</span>
-              </div>
-            </div>
-          </div>
+              {tdsAmt !== 0 && (
+                <div className="flex justify-between py-0.5 text-red-700">
+                  <span>
+                    TDS (-) &nbsp; {tdsRateVal.toFixed(2)} %{tdsSectionVal ? ` (${tdsSectionVal})` : ''}
+                  </span>
+                  <span className="font-mono font-semibold">{money(tdsAmt)}</span>
+                </div>
+              )}
 
-          <div className="pt-3 text-xs">
-            <p className="font-bold text-slate-800">
-              Amount in Words:{' '}
-              <span className="italic font-normal uppercase text-slate-900">{amountInWords(grandTot)}</span>
-            </p>
+              {tdsAmt !== 0 && (
+                <div className="flex justify-between py-0.5 font-semibold text-slate-800 border-t border-slate-300">
+                  <span>Net Receivable</span>
+                  <span className="font-mono">{money(grandTot - tdsAmt)}</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="pt-12 flex justify-between items-end text-xs">
-          <div className="text-center">
-            <div className="w-36 border-t border-slate-400 mb-1"></div>
-            <span className="text-slate-600 font-semibold text-[10px]">Prepared By</span>
+        {/* Footer: Amount in Words & Signatures */}
+        <div className="pt-6">
+          <div className="text-xs mb-8">
+            <p className="font-bold text-slate-900">
+              Amount in Words : &nbsp;
+              <span className="italic font-normal uppercase text-slate-950">{amountInWords(grandTot)}</span>
+            </p>
           </div>
 
-          <div className="text-right">
-            <p className="font-bold text-slate-900 uppercase text-[11px] mb-10">For, {companyName}</p>
-            <span className="text-slate-700 font-bold border-t border-slate-900 pt-1 px-4 text-[11px]">
-              Authorised Signatory
-            </span>
+          <div className="flex justify-between items-end text-xs">
+            <div className="text-center">
+              <div className="w-32 border-t border-slate-700 mb-1"></div>
+              <span className="text-slate-700 text-[11px]">Prepared By</span>
+            </div>
+
+            <div className="text-right">
+              <p className="font-bold text-slate-950 uppercase text-[11px] mb-8">For, {companyName}</p>
+              <div className="inline-block border-t border-slate-900 pt-1 px-4">
+                <span className="text-slate-950 font-bold text-[11px]">Authorised Signatory</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
 };
+
+/* ─────────────────────────────────────────────────────────────────
+   Main Print Preview Page
+───────────────────────────────────────────────────────────────── */
 export const DebitNotePrintPreviewPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -304,7 +374,6 @@ export const DebitNotePrintPreviewPage: React.FC = () => {
   }, [loadData]);
 
   const printSheets = () => {
-    // Let React commit the chosen note set before the browser print dialog opens.
     window.setTimeout(() => window.print(), 100);
   };
 
@@ -398,10 +467,10 @@ export const DebitNotePrintPreviewPage: React.FC = () => {
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <span className="font-bold tracking-wide">Print Preview: Debit Note {note.noteNumber}</span>
+          <span className="font-bold tracking-wide">Print Preview: {note.noteNumber}</span>
           {activeNotes.length > 1 && (
             <span className="bg-emerald-700 px-2 py-0.5 rounded text-[10px] font-bold">
-              {activeNotes.length} notes selected
+              {activeNotes.length} notes
             </span>
           )}
         </div>
@@ -412,7 +481,7 @@ export const DebitNotePrintPreviewPage: React.FC = () => {
             className="bg-[#1f4842] hover:bg-[#163530] text-emerald-200 px-3 py-1 rounded font-bold cursor-pointer flex items-center gap-1.5"
           >
             <Sliders className="w-3.5 h-3.5" />
-            <span>Print Options</span>
+            <span>Options</span>
           </button>
 
           <button

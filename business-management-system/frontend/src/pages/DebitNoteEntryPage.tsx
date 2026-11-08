@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useCompany } from '../context/CompanyContext';
 import {
@@ -60,13 +60,35 @@ const OS_EFFECT_OPTIONS = [
   { value: '3.NONE', label: '3.NONE' },
 ];
 
+type BillPaymentStatus = 'UNPAID' | 'PARTIAL' | 'PAID';
+
+/** Paid / part-paid / unpaid is derived from real amounts only - never guessed. */
+function getBillPaymentStatus(bill: {
+  paidAmt?: number | null;
+  unPaidAmt?: number | null;
+  billAmt?: number | null;
+}): BillPaymentStatus {
+  const paid = Number(bill.paidAmt ?? 0);
+  const unpaid = Number(bill.unPaidAmt ?? bill.billAmt ?? 0);
+  if (paid <= 0) return 'UNPAID';
+  if (unpaid <= 0) return 'PAID';
+  return 'PARTIAL';
+}
+
+const BILL_STATUS_FILTERS: Array<{ value: 'ALL' | BillPaymentStatus; label: string }> = [
+  { value: 'ALL', label: 'All' },
+  { value: 'UNPAID', label: 'Unpaid' },
+  { value: 'PARTIAL', label: 'Part-paid' },
+  { value: 'PAID', label: 'Paid' },
+];
+
 function computeLineBasicAmount(
   row: DebitNoteBillLine,
   reason: 'CASH_DISCOUNT' | 'QUANTITY_DISCOUNT' | 'RATE_DIFFERENCE' | 'INTEREST' | 'TCS',
   calculationBasis: 'BILL_AMOUNT' | 'TAXABLE_AMOUNT' | 'BASIC_AMOUNT'
 ): number {
   const rate = Number(row.rate || 0);
-  if (rate <= 0) return 0;
+  if (rate <= 0) return Number(row.basicAmount || 0);
 
   const base = calculationBasis === 'BILL_AMOUNT'
     ? Number(row.billAmount || 0)
@@ -120,7 +142,7 @@ export const DebitNoteEntryPage: React.FC = () => {
   const [noteNumber, setNoteNumber] = useState('—');
   const [noteDate, setNoteDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [partyNoteNo, setPartyNoteNo] = useState('');
-  const [noteType, setNoteType] = useState<'SALES' | 'PURCHASE' | 'BOTH'>('SALES');
+  const [noteType, setNoteType] = useState<'SALES' | 'PURCHASE' | 'BOTH'>('PURCHASE');
   const [selectedParty, setSelectedParty] = useState<any | null>(null);
   const [dueDays, setDueDays] = useState(0);
 
@@ -133,8 +155,8 @@ export const DebitNoteEntryPage: React.FC = () => {
 
   const [gridRows, setGridRows] = useState<DebitNoteBillLine[]>([]);
 
-  // TDS has no configured ledger or rate in this BMS. The fields stay disabled and
-  // always submit zero; the backend rejects any non-zero value.
+  // TDS is rate-driven: the rate is entered by the user and the amount is always
+  // derived from the Taxable Value (never inferred by the system).
   const [tdsRate, setTdsRate] = useState<number>(0);
   const [tdsAmount, setTdsAmount] = useState<number>(0);
   const [tdsSection, setTdsSection] = useState('');
@@ -145,6 +167,12 @@ export const DebitNoteEntryPage: React.FC = () => {
   const [partySearchTerm, setPartySearchTerm] = useState('');
   const [showBillModal, setShowBillModal] = useState(false);
   const [eligibleBills, setEligibleBills] = useState<any[]>([]);
+  const [billSearch, setBillSearch] = useState('');
+  const [billFromDate, setBillFromDate] = useState('');
+  const [billToDate, setBillToDate] = useState('');
+  const [activeBillIndex, setActiveBillIndex] = useState(0);
+  const billSearchRef = useRef<HTMLInputElement | null>(null);
+  const [billStatusFilter, setBillStatusFilter] = useState<'ALL' | BillPaymentStatus>('ALL');
   const [selectedBillIds, setSelectedBillIds] = useState<Set<string>>(new Set());
   const [isLoadingBills, setIsLoadingBills] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -201,8 +229,8 @@ export const DebitNoteEntryPage: React.FC = () => {
       setCalculationBasis(note.calculationBasis);
       setGstRate(parseFloat(String(note.gstRate ?? 0)) || 0);
       setTcsAmount(parseFloat(String(note.tcsAmount ?? 0)) || 0);
-      setTdsRate(0);
-      setTdsAmount(0);
+      setTdsRate(parseFloat(String(note.tdsRate ?? 0)) || 0);
+      setTdsAmount(parseFloat(String(note.tdsAmount ?? 0)) || 0);
       setTdsSection(note.tdsSection || '');
       setTdsAccount(note.tdsAccount || 'TDS RECEIVABLE');
       setRemark(note.remark || '');
@@ -283,27 +311,57 @@ export const DebitNoteEntryPage: React.FC = () => {
       });
   }, [parties, noteType, partySearchTerm]);
 
+  // ?? BILL PICKER: exclude already-imported bills + paid/unpaid filtering ???
+  const availableBills = useMemo(
+    () => eligibleBills.filter((bill) => !gridRows.some((row) => row.sourceBillId === bill.id)),
+    [eligibleBills, gridRows]
+  );
+
+  const billStatusCounts = useMemo(() => {
+    const counts = { ALL: availableBills.length, UNPAID: 0, PARTIAL: 0, PAID: 0 };
+    for (const bill of availableBills) counts[getBillPaymentStatus(bill)] += 1;
+    return counts;
+  }, [availableBills]);
+
+  const filteredBills = useMemo(() => {
+    const term = billSearch.trim().toLowerCase();
+    return availableBills.filter((bill) => {
+      if (billStatusFilter !== 'ALL' && getBillPaymentStatus(bill) !== billStatusFilter) return false;
+      if (billFromDate && bill.date < billFromDate) return false;
+      if (billToDate && bill.date > billToDate) return false;
+      if (!term) return true;
+      return [bill.invoiceNo, bill.item, bill.txnType]
+        .some((value) => String(value ?? '').toLowerCase().includes(term));
+    });
+  }, [availableBills, billSearch, billStatusFilter, billFromDate, billToDate]);
+
   const updateGridRow = (index: number, field: string, value: any) => {
     setGridRows((prev) => {
       const updated = [...prev];
       const row: any = { ...updated[index], [field]: value };
 
       const numericFields = [
-        'totalDays', 'dharaDays', 'paidAmount', 'quantity',
+        'totalDays', 'dharaDays', 'interestDays', 'paidAmount', 'quantity',
         'billTaxable', 'billAmount', 'unpaidAmount',
         'sgstRate', 'cgstRate', 'igstRate', 'rate', 'basicAmount',
       ];
       if (numericFields.includes(field)) {
-        const numeric = Number(value);
-        row[field] = Number.isFinite(numeric) ? Math.max(0, numeric) : 0;
+        if (value === '' || value === null || value === undefined) {
+          row[field] = 0;
+        } else {
+          const numeric = Number(value);
+          row[field] = Number.isFinite(numeric) ? Math.max(0, numeric) : 0;
+        }
       }
 
       if (field === 'dharaDays' || field === 'totalDays') {
         row.interestDays = Math.max(0, Number(row.totalDays || 0) - Number(row.dharaDays || 0));
       }
 
-      if (field !== 'basicAmount' && Number(row.rate || 0) > 0) {
-        row.basicAmount = computeLineBasicAmount(row as DebitNoteBillLine, reason, calculationBasis);
+      if (['rate', 'totalDays', 'dharaDays', 'interestDays', 'billAmount', 'billTaxable', 'quantity'].includes(field)) {
+        if (Number(row.rate || 0) > 0) {
+          row.basicAmount = computeLineBasicAmount(row as DebitNoteBillLine, reason, calculationBasis);
+        }
       }
 
       updated[index] = row as DebitNoteBillLine;
@@ -316,12 +374,13 @@ export const DebitNoteEntryPage: React.FC = () => {
   };
 
   const calculations = useMemo(() => {
-    const validRows = gridRows.filter((row) => row.billNo && Number(row.basicAmount) > 0);
+    const presentRows = gridRows.filter((row) => row.billNo);
+    const validRows = presentRows.filter((row) => Number(row.basicAmount) > 0);
 
-    const totalBillAmt = validRows.reduce((sum, row) => sum + Number(row.billAmount || 0), 0);
-    const totalTaxableAmt = validRows.reduce((sum, row) => sum + Number(row.billTaxable || 0), 0);
-    const totalPaidAmt = validRows.reduce((sum, row) => sum + Number(row.paidAmount || 0), 0);
-    const totalUnpaidAmt = validRows.reduce((sum, row) => sum + Number(row.unpaidAmount || 0), 0);
+    const totalBillAmt = presentRows.reduce((sum, row) => sum + Number(row.billAmount || 0), 0);
+    const totalTaxableAmt = presentRows.reduce((sum, row) => sum + Number(row.billTaxable || 0), 0);
+    const totalPaidAmt = presentRows.reduce((sum, row) => sum + Number(row.paidAmount || 0), 0);
+    const totalUnpaidAmt = presentRows.reduce((sum, row) => sum + Number(row.unpaidAmount || 0), 0);
     const basicAmount = validRows.reduce((sum, row) => sum + Number(row.basicAmount || 0), 0);
     const taxableValue = basicAmount;
 
@@ -338,15 +397,39 @@ export const DebitNoteEntryPage: React.FC = () => {
     let sgstAmt = 0;
     let igstAmt = 0;
 
-    if (gstRate > 0) {
+    if (validRows.length > 0) {
+      let sumCgstRate = 0;
+      let sumSgstRate = 0;
+      let sumIgstRate = 0;
+
+      validRows.forEach((row) => {
+        const rowBasic = Number(row.basicAmount || 0);
+        const rSgst = Number(row.sgstRate || 0);
+        const rCgst = Number(row.cgstRate || 0);
+        const rIgst = Number(row.igstRate || 0);
+
+        cgstAmt += (rowBasic * rCgst) / 100;
+        sgstAmt += (rowBasic * rSgst) / 100;
+        igstAmt += (rowBasic * rIgst) / 100;
+
+        sumCgstRate += rCgst;
+        sumSgstRate += rSgst;
+        sumIgstRate += rIgst;
+      });
+
+      cgstAmt = Math.round(cgstAmt * 100) / 100;
+      sgstAmt = Math.round(sgstAmt * 100) / 100;
+      igstAmt = Math.round(igstAmt * 100) / 100;
+
+      cgstRate = Math.round((sumCgstRate / validRows.length) * 100) / 100;
+      sgstRate = Math.round((sumSgstRate / validRows.length) * 100) / 100;
+      igstRate = Math.round((sumIgstRate / validRows.length) * 100) / 100;
+    } else if (gstRate > 0) {
       if (isIntraState) {
         cgstRate = gstRate / 2;
         sgstRate = gstRate / 2;
-        cgstAmt = Math.round(((taxableValue * cgstRate) / 100) * 100) / 100;
-        sgstAmt = Math.round(((taxableValue * sgstRate) / 100) * 100) / 100;
       } else {
         igstRate = gstRate;
-        igstAmt = Math.round(((taxableValue * igstRate) / 100) * 100) / 100;
       }
     }
 
@@ -355,6 +438,14 @@ export const DebitNoteEntryPage: React.FC = () => {
     const subTotal = taxableValue + cgstAmt + sgstAmt + igstAmt + tcs;
     const finalTotal = Math.round(subTotal);
     const roundOff = Math.round((finalTotal - subTotal) * 100) / 100;
+
+    // TDS: rate entered by the user, amount always derived from the Taxable Value.
+    // The note total is unchanged; TDS only reduces what the party owes.
+    const tdsRateValue = Math.max(0, Number(tdsRate) || 0);
+    const tdsAmountValue = tdsRateValue > 0
+      ? Math.round(((taxableValue * tdsRateValue) / 100) * 100) / 100
+      : Math.max(0, Number(tdsAmount) || 0);
+    const netAmount = Math.round((finalTotal - tdsAmountValue) * 100) / 100;
 
     return {
       billCount: validRows.length,
@@ -371,22 +462,32 @@ export const DebitNoteEntryPage: React.FC = () => {
       igstRate,
       igstAmount: igstAmt,
       tcsAmount: tcs,
+      tdsRate: tdsRateValue,
+      tdsAmount: tdsAmountValue,
+      netAmount,
       roundOff,
       totalAmount: finalTotal,
     };
-  }, [gridRows, gstRate, activeCompany, selectedParty, reason, tcsAmount]);
-  const handleOpenBillsModal = async () => {
-    if (!selectedParty) {
+  }, [gridRows, gstRate, activeCompany, selectedParty, reason, tcsAmount, tdsRate, tdsAmount]);
+  const handleOpenBillsModal = async (
+    overrideNoteType?: 'SALES' | 'PURCHASE' | 'BOTH',
+    overrideParty?: any
+  ) => {
+    const partyToUse = overrideParty || selectedParty;
+    const lookupNoteType = overrideNoteType ?? noteType;
+    if (!partyToUse) {
       setError('Please select a Party first before looking up bills.');
+      setShowPartyModal(true);
       return;
     }
 
     setIsLoadingBills(true);
     setShowBillModal(true);
     setSelectedBillIds(new Set());
+    setActiveBillIndex(0);
 
     try {
-      const data = await getEligibleDebitNoteBills(selectedParty.id, noteType);
+      const data = await getEligibleDebitNoteBills(partyToUse.id, lookupNoteType);
       setEligibleBills(data);
     } catch (err: any) {
       setEligibleBills([]);
@@ -396,26 +497,44 @@ export const DebitNoteEntryPage: React.FC = () => {
     }
   };
 
-  const handleAddSelectedBills = () => {
-    const chosen = eligibleBills.filter((bill) => selectedBillIds.has(bill.id));
-    if (chosen.length === 0) {
-      setShowBillModal(false);
-      return;
-    }
-
-    const newRows: DebitNoteBillLine[] = chosen.map((bill, index) => {
+  const createLineFromBill = useCallback(
+    (bill: any, lineIndex: number): DebitNoteBillLine => {
       const billDate = new Date(bill.date);
       const noteDt = new Date(noteDate);
       const totalDays = Math.max(0, Math.floor((noteDt.getTime() - billDate.getTime()) / 86400000));
+      const dharaDays = 0;
+      const interestDays = totalDays;
+      const defaultRate = bill.rate !== undefined && bill.rate !== null ? Number(bill.rate) : 0;
 
-      return {
-        lineNumber: gridRows.length + index + 1,
+      const companyGstin = activeCompany?.gstin ? String(activeCompany.gstin).trim().toUpperCase() : '';
+      const companyStateCode = companyGstin && companyGstin.length >= 2 ? companyGstin.substring(0, 2) : '';
+      const partyGstin = selectedParty?.gstin ? String(selectedParty.gstin).trim().toUpperCase() : '';
+      const partyStateCode = partyGstin && partyGstin.length >= 2 ? partyGstin.substring(0, 2) : '';
+      const isIntraState = companyStateCode && partyStateCode ? partyStateCode === companyStateCode : true;
+
+      let billSgst = bill.sgstRate !== undefined && bill.sgstRate !== null ? Number(bill.sgstRate) : 0;
+      let billCgst = bill.cgstRate !== undefined && bill.cgstRate !== null ? Number(bill.cgstRate) : 0;
+      let billIgst = bill.igstRate !== undefined && bill.igstRate !== null ? Number(bill.igstRate) : 0;
+
+      if (billSgst === 0 && billCgst === 0 && billIgst === 0 && gstRate > 0) {
+        if (isIntraState) {
+          billSgst = gstRate / 2;
+          billCgst = gstRate / 2;
+          billIgst = 0;
+        } else {
+          billSgst = 0;
+          billCgst = 0;
+          billIgst = gstRate;
+        }
+      }
+
+      const draftLine: DebitNoteBillLine = {
+        lineNumber: lineIndex,
         billNo: bill.invoiceNo,
         billDate: bill.date,
         totalDays,
-        // Dhara Days is a manual credit period, never invented by the system.
-        dharaDays: 0,
-        interestDays: totalDays,
+        dharaDays,
+        interestDays,
         paidAmount: bill.paidAmt || 0,
         paidDate: bill.paymentDate || null,
         itemDescription: bill.item || null,
@@ -423,22 +542,153 @@ export const DebitNoteEntryPage: React.FC = () => {
         billTaxable: bill.taxableAmt ?? bill.billAmt,
         billAmount: bill.billAmt,
         unpaidAmount: bill.unPaidAmt ?? bill.billAmt,
-        sgstRate: bill.sgstRate || 0,
-        cgstRate: bill.cgstRate || 0,
-        igstRate: bill.igstRate || 0,
-        rate: 0,
-        basicAmount: 0,
+        sgstRate: billSgst,
+        cgstRate: billCgst,
+        igstRate: billIgst,
+        rate: defaultRate,
+        basicAmount: bill.basicAmount ? Number(bill.basicAmount) : 0,
         sourceBillId: bill.id,
         sourceBillType: bill.txnType,
       };
-    });
+      if (defaultRate > 0) {
+        draftLine.basicAmount = computeLineBasicAmount(draftLine, reason, calculationBasis);
+      }
+      return draftLine;
+    },
+    [noteDate, reason, calculationBasis, activeCompany, selectedParty, gstRate]
+  );
+
+  const handleAddSingleBill = useCallback(
+    (bill: any) => {
+      setGridRows((prev) => {
+        const newLine = createLineFromBill(bill, prev.length + 1);
+        return [...prev, newLine];
+      });
+      setRemark((prev) => (prev ? `${prev},${bill.invoiceNo}` : `BILL#${bill.invoiceNo}`));
+    },
+    [createLineFromBill]
+  );
+
+  const handleAddSelectedBills = useCallback(
+    (autoPickFirst = false) => {
+      let chosen = eligibleBills.filter((bill) => selectedBillIds.has(bill.id));
+      if (chosen.length === 0 && autoPickFirst) {
+        const nextBill = filteredBills[activeBillIndex] || filteredBills[0];
+        if (nextBill) chosen = [nextBill];
+      }
+      if (chosen.length === 0) {
+        setShowBillModal(false);
+        return;
+      }
+
+      const firstNewRowIndex = gridRows.length;
+      const newRows: DebitNoteBillLine[] = chosen.map((bill, index) =>
+        createLineFromBill(bill, gridRows.length + index + 1)
+      );
+
+      setGridRows((prev) => [...prev, ...newRows]);
+
+      const billNumbers = chosen.map((bill) => bill.invoiceNo).join(',');
+      setRemark((prev) => (prev ? `${prev},${billNumbers}` : `BILL#${billNumbers}`));
+      setSelectedBillIds(new Set());
+      setShowBillModal(false);
+      window.setTimeout(() => {
+        document.querySelector<HTMLElement>(`[data-bill-amt-row="${firstNewRowIndex}"]`)?.focus();
+      }, 0);
+    },
+    [eligibleBills, selectedBillIds, filteredBills, activeBillIndex, gridRows.length, createLineFromBill]
+  );
+
+  const handleAddAllFilteredBills = useCallback(() => {
+    if (filteredBills.length === 0) return;
+    const firstNewRowIndex = gridRows.length;
+    const newRows: DebitNoteBillLine[] = filteredBills.map((bill, index) =>
+      createLineFromBill(bill, gridRows.length + index + 1)
+    );
 
     setGridRows((prev) => [...prev, ...newRows]);
 
-    const billNumbers = chosen.map((bill) => bill.invoiceNo).join(',');
+    const billNumbers = filteredBills.map((bill) => bill.invoiceNo).join(',');
     setRemark((prev) => (prev ? `${prev},${billNumbers}` : `BILL#${billNumbers}`));
+    setSelectedBillIds(new Set());
     setShowBillModal(false);
-  };
+    window.setTimeout(() => {
+      document.querySelector<HTMLElement>(`[data-bill-amt-row="${firstNewRowIndex}"]`)?.focus();
+    }, 0);
+  }, [filteredBills, gridRows.length, createLineFromBill]);
+
+  // Picker keyboard flow:
+  // Arrow Down / Arrow Up to navigate rows.
+  // Enter adds the active bill and keeps picker open so typing Enter-Enter-Enter
+  // automatically fills consecutive rows!
+  // Ctrl+Enter or clicking 'Add All' fills all matching bills.
+  useEffect(() => {
+    if (!showBillModal) return undefined;
+
+    const handleModalKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && target.tagName === 'BUTTON') return;
+
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        setActiveBillIndex((prev) => Math.min(prev + 1, Math.max(0, filteredBills.length - 1)));
+        return;
+      }
+
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        setActiveBillIndex((prev) => Math.max(0, prev - 1));
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        event.preventDefault();
+
+        // Ctrl+Enter or Shift+Enter adds all filtered bills
+        if (event.ctrlKey || event.shiftKey) {
+          handleAddAllFilteredBills();
+          return;
+        }
+
+        // If checkboxes were selected manually, add all selected
+        if (selectedBillIds.size > 0) {
+          handleAddSelectedBills(false);
+          return;
+        }
+
+        // Otherwise sequential Enter auto-fills one bill at a time
+        if (filteredBills.length > 0) {
+          const indexToAdd = Math.min(activeBillIndex, filteredBills.length - 1);
+          const billToAdd = filteredBills[indexToAdd];
+          if (billToAdd) {
+            handleAddSingleBill(billToAdd);
+            // If only 1 bill was remaining, closing the picker
+            if (filteredBills.length <= 1) {
+              setShowBillModal(false);
+            }
+          }
+        } else {
+          setShowBillModal(false);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleModalKeyDown);
+    return () => window.removeEventListener('keydown', handleModalKeyDown);
+  }, [
+    showBillModal,
+    filteredBills,
+    activeBillIndex,
+    selectedBillIds,
+    handleAddSingleBill,
+    handleAddSelectedBills,
+    handleAddAllFilteredBills,
+  ]);
+
+  // Focus the filter box as soon as the picker opens.
+  useEffect(() => {
+    if (showBillModal) billSearchRef.current?.focus();
+  }, [showBillModal]);
 
   const clearForm = () => {
     if (isEditMode) {
@@ -451,6 +701,8 @@ export const DebitNoteEntryPage: React.FC = () => {
     setPartyBalance(null);
     setPartyNoteNo('');
     setTcsAmount(0);
+    setTdsRate(0);
+    setTdsAmount(0);
     setTdsSection('');
     setTdsAccount('TDS RECEIVABLE');
     setError(null);
@@ -484,6 +736,10 @@ export const DebitNoteEntryPage: React.FC = () => {
       setError('TCS amount must be entered explicitly because no TCS rate is configured.');
       return;
     }
+    if (calculations.tdsAmount > 0 && calculations.tdsAmount >= calculations.totalAmount) {
+      setError('TDS amount must be less than the Debit Note total.');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -500,10 +756,10 @@ export const DebitNoteEntryPage: React.FC = () => {
         calculationBasis,
         gstRate,
         tcsAmount: reason === 'TCS' ? tcsAmount : 0,
-        tdsRate: 0,
-        tdsAmount: 0,
-        tdsSection: null,
-        tdsAccount: null,
+        tdsRate: calculations.tdsRate,
+        tdsAmount: calculations.tdsAmount,
+        tdsSection: tdsSection.trim() || null,
+        tdsAccount: tdsAccount.trim() || null,
         remark: remark.trim() || null,
         billLines: validRows.map((row) => ({
           billNo: row.billNo,
@@ -846,9 +1102,31 @@ export const DebitNoteEntryPage: React.FC = () => {
 
                 <select
                   value={calculationBasis}
-                  onChange={(e) => setCalculationBasis(e.target.value as any)}
+                  onChange={(e) => {
+                    const newBasis = e.target.value as any;
+                    setCalculationBasis(newBasis);
+                    if (newBasis === 'BILL_AMOUNT') {
+                      if (!selectedParty) {
+                        setError('Please select a Party first before selecting Bill Amount.');
+                        setShowPartyModal(true);
+                      } else {
+                        void handleOpenBillsModal();
+                      }
+                    }
+                  }}
+                  onClick={() => {
+                    if (calculationBasis === 'BILL_AMOUNT') {
+                      if (!selectedParty) {
+                        setError('Please select a Party first before selecting Bill Amount.');
+                        setShowPartyModal(true);
+                      } else {
+                        void handleOpenBillsModal();
+                      }
+                    }
+                  }}
                   disabled={loadedNote?.status === 'CANCELLED'}
-                  className="w-36 bg-white border border-[#789d93] rounded px-2 py-0.5 text-[11px] font-semibold focus:ring-1 focus:ring-[#2c5f57]"
+                  title="Click to automatically open Original Bills"
+                  className="w-36 bg-white border border-[#789d93] rounded px-2 py-0.5 text-[11px] font-semibold focus:ring-1 focus:ring-[#2c5f57] cursor-pointer"
                 >
                   {CALC_BASIS_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -865,7 +1143,23 @@ export const DebitNoteEntryPage: React.FC = () => {
                 type="number"
                 step="0.01"
                 value={gstRate}
-                onChange={(e) => setGstRate(parseFloat(e.target.value) || 0)}
+                onChange={(e) => {
+                  const newRate = parseFloat(e.target.value) || 0;
+                  setGstRate(newRate);
+                  setGridRows((prev) =>
+                    prev.map((r) => {
+                      const companyGstin = activeCompany?.gstin ? String(activeCompany.gstin).trim().toUpperCase() : '';
+                      const partyGstin = selectedParty?.gstin ? String(selectedParty.gstin).trim().toUpperCase() : '';
+                      const isIntra = companyGstin && partyGstin ? partyGstin.substring(0, 2) === companyGstin.substring(0, 2) : true;
+                      return {
+                        ...r,
+                        sgstRate: isIntra ? newRate / 2 : 0,
+                        cgstRate: isIntra ? newRate / 2 : 0,
+                        igstRate: isIntra ? 0 : newRate,
+                      };
+                    })
+                  );
+                }}
                 disabled={loadedNote?.status === 'CANCELLED'}
                 className="w-24 bg-white border border-[#789d93] rounded px-2 py-0.5 text-xs font-mono font-bold text-right focus:ring-1 focus:ring-[#2c5f57]"
               />
@@ -875,7 +1169,7 @@ export const DebitNoteEntryPage: React.FC = () => {
             <div className="pt-1 flex items-center justify-between">
               <button
                 type="button"
-                onClick={handleOpenBillsModal}
+                onClick={() => void handleOpenBillsModal()}
                 disabled={loadedNote?.status === 'CANCELLED'}
                 className="bg-[#2c5f57] hover:bg-[#204741] text-white px-3 py-1 rounded font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
@@ -931,6 +1225,8 @@ export const DebitNoteEntryPage: React.FC = () => {
                   <th className="py-1 px-2 border-r border-[#789d93]">Bill Dt</th>
                   <th className="py-1 px-2 border-r border-[#789d93] text-right">Total Days</th>
                   <th className="py-1 px-2 border-r border-[#789d93] text-right">Dhara Days</th>
+                  <th className="py-1 px-2 border-r border-[#789d93] text-right">Paid Amt</th>
+                  <th className="py-1 px-2 border-r border-[#789d93]">Paid Date</th>
                   <th className="py-1 px-2 border-r border-[#789d93]">Item</th>
                   <th className="py-1 px-2 border-r border-[#789d93] text-right">Bill Txble</th>
                   <th className="py-1 px-2 border-r border-[#789d93] text-right">Bill Amt</th>
@@ -946,8 +1242,19 @@ export const DebitNoteEntryPage: React.FC = () => {
               <tbody>
                 {gridRows.length === 0 ? (
                   <tr>
-                    <td colSpan={15} className="py-8 text-center text-slate-400 italic">
-                      No bill rows added. Click &quot;Select Original Bills&quot; above to import bills.
+                    <td
+                      colSpan={17}
+                      tabIndex={0}
+                      title="Click or press Enter to pick original bills"
+                      onClick={() => void handleOpenBillsModal()}
+                      onKeyDown={(event) => {
+                        if (event.key !== 'Enter' && event.key !== ' ') return;
+                        event.preventDefault();
+                        void handleOpenBillsModal();
+                      }}
+                      className="py-8 text-center text-slate-400 italic cursor-pointer hover:bg-[#f1f8f5] focus:bg-[#f1f8f5] focus:outline-none"
+                    >
+                      No bill rows added. Click here (or press Enter) to pick original bills.
                     </td>
                   </tr>
                 ) : (
@@ -988,6 +1295,24 @@ export const DebitNoteEntryPage: React.FC = () => {
                           className="w-14 bg-transparent border-0 text-right font-mono focus:bg-white focus:ring-1 focus:ring-[#2c5f57] px-1 py-0.5 text-xs font-semibold text-blue-800"
                         />
                       </td>
+                      <td className="py-0.5 px-1 border-r border-slate-200 text-right">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={row.paidAmount ?? 0}
+                          onChange={(e) => updateGridRow(idx, 'paidAmount', parseFloat(e.target.value) || 0)}
+                          className="w-20 bg-transparent border-0 text-right font-mono focus:bg-white focus:ring-1 focus:ring-[#2c5f57] px-1 py-0.5 text-xs text-emerald-800"
+                        />
+                      </td>
+                      <td className="py-0.5 px-1 border-r border-slate-200">
+                        <input
+                          type="date"
+                          value={row.paidDate ? String(row.paidDate).slice(0, 10) : ''}
+                          onChange={(e) => updateGridRow(idx, 'paidDate', e.target.value || null)}
+                          className="w-28 bg-transparent border-0 font-mono text-[11px] focus:bg-white focus:ring-1 focus:ring-[#2c5f57] px-1 py-0.5"
+                        />
+                      </td>
                       <td className="py-0.5 px-1 border-r border-slate-200">
                         <input
                           type="text"
@@ -996,30 +1321,73 @@ export const DebitNoteEntryPage: React.FC = () => {
                           className="w-28 bg-transparent border-0 text-slate-800 focus:bg-white focus:ring-1 focus:ring-[#2c5f57] px-1 py-0.5 text-xs"
                         />
                       </td>
-                      <td className="py-1 px-2 border-r border-slate-200 text-right font-mono text-slate-700">
-                        {Number(row.billTaxable || row.billAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-1 px-2 border-r border-slate-200 text-right font-mono font-bold text-slate-900">
-                        {Number(row.billAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-1 px-2 border-r border-slate-200 text-right font-mono text-slate-600">
-                        {Number(row.sgstRate || 0).toFixed(2)}
-                      </td>
-                      <td className="py-1 px-2 border-r border-slate-200 text-right font-mono text-slate-600">
-                        {Number(row.cgstRate || 0).toFixed(2)}
-                      </td>
-                      <td className="py-1 px-2 border-r border-slate-200 text-right font-mono text-slate-600">
-                        {Number(row.igstRate || 0).toFixed(2)}
-                      </td>
-                      <td className="py-1 px-2 border-r border-slate-200 text-right font-mono font-bold text-blue-900">
-                        {row.interestDays}
+                      <td className="py-0.5 px-1 border-r border-slate-200 text-right">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={row.billTaxable === 0 ? '' : (row.billTaxable ?? '')}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => updateGridRow(idx, 'billTaxable', e.target.value === '' ? '' : parseFloat(e.target.value))}
+                          className="w-20 bg-transparent border-0 text-right font-mono text-slate-700 focus:bg-white focus:ring-1 focus:ring-[#2c5f57] px-1 py-0.5 text-xs"
+                        />
                       </td>
                       <td className="py-0.5 px-1 border-r border-slate-200 text-right">
                         <input
                           type="number"
                           step="0.01"
-                          value={row.rate || 0}
-                          onChange={(e) => updateGridRow(idx, 'rate', parseFloat(e.target.value) || 0)}
+                          value={row.billAmount === 0 ? '' : (row.billAmount ?? '')}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => updateGridRow(idx, 'billAmount', e.target.value === '' ? '' : parseFloat(e.target.value))}
+                          className="w-20 bg-transparent border-0 text-right font-mono font-bold text-slate-900 focus:bg-white focus:ring-1 focus:ring-[#2c5f57] px-1 py-0.5 text-xs"
+                        />
+                      </td>
+                      <td className="py-0.5 px-1 border-r border-slate-200 text-right">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={row.sgstRate ?? 0}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => updateGridRow(idx, 'sgstRate', e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                          className="w-12 bg-transparent border-0 text-right font-mono text-slate-600 focus:bg-white focus:ring-1 focus:ring-[#2c5f57] px-1 py-0.5 text-xs"
+                        />
+                      </td>
+                      <td className="py-0.5 px-1 border-r border-slate-200 text-right">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={row.cgstRate ?? 0}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => updateGridRow(idx, 'cgstRate', e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                          className="w-12 bg-transparent border-0 text-right font-mono text-slate-600 focus:bg-white focus:ring-1 focus:ring-[#2c5f57] px-1 py-0.5 text-xs"
+                        />
+                      </td>
+                      <td className="py-0.5 px-1 border-r border-slate-200 text-right">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={row.igstRate ?? 0}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => updateGridRow(idx, 'igstRate', e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                          className="w-12 bg-transparent border-0 text-right font-mono text-slate-600 focus:bg-white focus:ring-1 focus:ring-[#2c5f57] px-1 py-0.5 text-xs"
+                        />
+                      </td>
+                      <td className="py-0.5 px-1 border-r border-slate-200 text-right">
+                        <input
+                          type="number"
+                          value={row.interestDays ?? 0}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => updateGridRow(idx, 'interestDays', e.target.value === '' ? 0 : parseInt(e.target.value, 10))}
+                          className="w-14 bg-transparent border-0 text-right font-mono font-bold text-blue-900 focus:bg-white focus:ring-1 focus:ring-[#2c5f57] px-1 py-0.5 text-xs"
+                        />
+                      </td>
+                      <td className="py-0.5 px-1 border-r border-slate-200 text-right">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={row.rate === 0 ? '' : (row.rate ?? '')}
+                          placeholder="0.00"
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => updateGridRow(idx, 'rate', e.target.value === '' ? '' : parseFloat(e.target.value))}
                           className="w-16 bg-transparent border-0 text-right font-mono focus:bg-white focus:ring-1 focus:ring-[#2c5f57] px-1 py-0.5 text-xs font-bold text-purple-900"
                         />
                       </td>
@@ -1027,8 +1395,10 @@ export const DebitNoteEntryPage: React.FC = () => {
                         <input
                           type="number"
                           step="0.01"
-                          value={row.basicAmount || 0}
-                          onChange={(e) => updateGridRow(idx, 'basicAmount', parseFloat(e.target.value) || 0)}
+                          value={row.basicAmount === 0 ? '' : (row.basicAmount ?? '')}
+                          placeholder="0.00"
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => updateGridRow(idx, 'basicAmount', e.target.value === '' ? '' : parseFloat(e.target.value))}
                           className="w-24 bg-transparent border-0 text-right font-mono font-bold text-emerald-800 focus:bg-white focus:ring-1 focus:ring-[#2c5f57] px-1 py-0.5 text-xs"
                         />
                       </td>
@@ -1060,17 +1430,15 @@ export const DebitNoteEntryPage: React.FC = () => {
                 <input
                   type="number"
                   step="0.01"
+                  min="0"
+                  max="100"
                   value={tdsRate}
-                  disabled
-                  onChange={(e) => {
-                    const r = parseFloat(e.target.value) || 0;
-                    setTdsRate(r);
-                    setTdsAmount(Math.round(((calculations.taxableValue * r) / 100) * 100) / 100);
-                  }}
+                  disabled={loadedNote?.status === 'CANCELLED'}
+                  onChange={(e) => setTdsRate(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
                   className="w-20 bg-white border border-[#789d93] rounded px-2 py-0.5 font-mono text-right"
                 />
-                <span className="font-mono text-slate-600">₹ {tdsAmount.toFixed(2)}</span>
-                <span className="text-[10px] text-amber-700">TDS not configured</span>
+                <span className="font-mono text-slate-600">₹ {calculations.tdsAmount.toFixed(2)}</span>
+                <span className="text-[10px] text-slate-500">= Taxable Value x TDS Rate</span>
               </div>
             </div>
 
@@ -1079,7 +1447,8 @@ export const DebitNoteEntryPage: React.FC = () => {
               <input
                 type="text"
                 value={tdsSection}
-                disabled
+                maxLength={20}
+                disabled={loadedNote?.status === 'CANCELLED'}
                 onChange={(e) => setTdsSection(e.target.value)}
                 placeholder="e.g. 194C / 194Q"
                 className="w-40 bg-white border border-[#789d93] rounded px-2 py-0.5 font-mono text-xs"
@@ -1091,7 +1460,7 @@ export const DebitNoteEntryPage: React.FC = () => {
               <input
                 type="text"
                 value={tdsAccount}
-                disabled
+                disabled={loadedNote?.status === 'CANCELLED'}
                 onChange={(e) => setTdsAccount(e.target.value)}
                 className="flex-1 bg-white border border-[#789d93] rounded px-2 py-0.5 font-semibold text-slate-800 text-xs"
               />
@@ -1139,40 +1508,90 @@ export const DebitNoteEntryPage: React.FC = () => {
               </span>
             </div>
 
-            <div className="flex items-center justify-between text-slate-700">
-              <span>(+) CGST ({calculations.cgstRate.toFixed(2)}%) :</span>
-              <span className="font-mono">
-                ₹ {calculations.cgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-              </span>
+            {/* ── Tax Breakdown Box matching Chandni ERP ──────────────── */}
+            <div className="border border-slate-400 bg-white rounded-xs overflow-hidden shadow-2xs my-1">
+              <table className="w-full text-xs border-collapse">
+                <tbody>
+                  <tr className="border-b border-slate-200 hover:bg-slate-50">
+                    <td className="py-0.5 px-2 text-slate-700 font-medium whitespace-nowrap">(+) CGST</td>
+                    <td className="py-0.5 px-2 text-right font-mono text-slate-600 w-20">
+                      {calculations.cgstRate.toFixed(2)}
+                    </td>
+                    <td className="py-0.5 px-2 text-right font-mono text-slate-900 font-semibold w-28">
+                      {calculations.cgstAmount.toFixed(2)}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-slate-200 hover:bg-slate-50">
+                    <td className="py-0.5 px-2 text-slate-700 font-medium whitespace-nowrap">(+) SGST</td>
+                    <td className="py-0.5 px-2 text-right font-mono text-slate-600 w-20">
+                      {calculations.sgstRate.toFixed(2)}
+                    </td>
+                    <td className="py-0.5 px-2 text-right font-mono text-slate-900 font-semibold w-28">
+                      {calculations.sgstAmount.toFixed(2)}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-slate-200 hover:bg-slate-50">
+                    <td className="py-0.5 px-2 text-slate-700 font-medium whitespace-nowrap">(+) IGST</td>
+                    <td className="py-0.5 px-2 text-right font-mono text-slate-600 w-20">
+                      {calculations.igstRate.toFixed(2)}
+                    </td>
+                    <td className="py-0.5 px-2 text-right font-mono text-slate-900 font-semibold w-28">
+                      {calculations.igstAmount.toFixed(2)}
+                    </td>
+                  </tr>
+                  <tr className="hover:bg-slate-50">
+                    <td className="py-0.5 px-2 text-slate-700 font-medium whitespace-nowrap">(+) TCS</td>
+                    <td className="py-0.5 px-2 text-right font-mono text-slate-600 w-20">
+                      0.00
+                    </td>
+                    <td className="py-0.5 px-2 text-right font-mono text-slate-900 font-semibold w-28">
+                      {calculations.tcsAmount > 0 ? calculations.tcsAmount.toFixed(2) : '0'}
+                    </td>
+                  </tr>
+                  {calculations.tdsAmount > 0 && (
+                    <tr className="border-t border-slate-200 hover:bg-slate-50 text-red-700">
+                      <td className="py-0.5 px-2 font-medium whitespace-nowrap">(-) TDS {tdsSection ? `(${tdsSection})` : ''}</td>
+                      <td className="py-0.5 px-2 text-right font-mono w-20">
+                        {calculations.tdsRate.toFixed(2)}
+                      </td>
+                      <td className="py-0.5 px-2 text-right font-mono font-semibold w-28">
+                        {calculations.tdsAmount.toFixed(2)}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
 
-            <div className="flex items-center justify-between text-slate-700">
-              <span>(+) SGST ({calculations.sgstRate.toFixed(2)}%) :</span>
-              <span className="font-mono">
-                ₹ {calculations.sgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between text-slate-700">
-              <span>(+) IGST ({calculations.igstRate.toFixed(2)}%) :</span>
-              <span className="font-mono">
-                ₹ {calculations.igstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-              </span>
-            </div>
-
-            {calculations.tcsAmount > 0 && (
-              <div className="flex items-center justify-between text-slate-700">
-                <span>(+) TCS :</span>
+            {calculations.tdsAmount > 0 && (
+              <div className="flex items-center justify-between text-slate-700 font-semibold pt-0.5">
+                <span>Net Receivable :</span>
                 <span className="font-mono">
-                  ₹ {calculations.tcsAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  ₹ {calculations.netAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </span>
               </div>
             )}
 
             <div className="flex items-center justify-between pt-1.5 border-t border-slate-300">
               <div className="flex items-center gap-2">
-                <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-bold px-2 py-0.5 rounded">
-                  {loadedNote?.status === 'CANCELLED' ? 'CANCELLED' : 'Un Paid'}
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase ${
+                    loadedNote?.status === 'CANCELLED'
+                      ? 'bg-red-600 text-white border-red-700'
+                      : calculations.totalPaidAmt > 0 && calculations.totalUnpaidAmt <= 0
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                      : calculations.totalPaidAmt > 0 && calculations.totalUnpaidAmt > 0
+                      ? 'bg-amber-100 text-amber-800 border-amber-300'
+                      : 'bg-yellow-100 text-yellow-900 border-yellow-300'
+                  }`}
+                >
+                  {loadedNote?.status === 'CANCELLED'
+                    ? 'CANCELLED'
+                    : calculations.totalPaidAmt > 0 && calculations.totalUnpaidAmt <= 0
+                    ? 'Paid'
+                    : calculations.totalPaidAmt > 0 && calculations.totalUnpaidAmt > 0
+                    ? 'Part Paid'
+                    : 'Un Paid'}
                 </span>
                 <span className="font-bold text-slate-900">Total ₹ :</span>
               </div>
@@ -1228,13 +1647,12 @@ export const DebitNoteEntryPage: React.FC = () => {
           <button
             type="button"
             onClick={() => {
-              if (isEditMode && id) {
+              if (id) {
                 navigate(`/transactions/debit-notes/${id}/print`);
-              } else {
-                setError('Please save the Debit Note first before printing.');
               }
             }}
-            className="bg-[#107c41] hover:bg-[#0c6334] text-white px-2.5 py-1 rounded font-bold cursor-pointer flex items-center gap-1"
+            disabled={!id}
+            className="bg-[#107c41] hover:bg-[#0c6334] text-white px-2.5 py-1 rounded font-bold cursor-pointer flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Printer className="w-3.5 h-3.5" />
             <span>4 - Print (F4)</span>
@@ -1324,8 +1742,14 @@ export const DebitNoteEntryPage: React.FC = () => {
                       <tr
                         key={p.id}
                         onClick={() => {
-                          setSelectedParty(p);
+                          const chosenParty = p;
+                          setSelectedParty(chosenParty);
                           setShowPartyModal(false);
+                          if (calculationBasis === 'BILL_AMOUNT') {
+                            setTimeout(() => {
+                              void handleOpenBillsModal(undefined, chosenParty);
+                            }, 100);
+                          }
                         }}
                         className="border-b border-slate-100 hover:bg-emerald-50 cursor-pointer"
                       >
@@ -1368,13 +1792,84 @@ export const DebitNoteEntryPage: React.FC = () => {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-2xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded border border-[#2c5f57] shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col text-xs max-h-[85vh]">
             <div className="bg-[#2c5f57] text-white px-3 py-2 font-bold flex items-center justify-between">
-              <span>Select Original Bills — {selectedParty?.partyName}</span>
+              <span>Select Original Bills — {selectedParty?.partyName} ({noteType})</span>
               <button
                 onClick={() => setShowBillModal(false)}
                 className="hover:text-red-300 font-bold cursor-pointer"
               >
                 ✕
               </button>
+            </div>
+
+            {/* Filter bar: search + date range + paid / unpaid status */}
+            <div className="px-3 py-2 border-b border-slate-200 bg-[#eef5f2] flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                value={billSearch}
+                onChange={(e) => setBillSearch(e.target.value)}
+                ref={billSearchRef}
+                placeholder="Filter invoice no / item..."
+                className="w-44 bg-white border border-[#789d93] rounded px-2 py-0.5 text-xs focus:ring-1 focus:ring-[#2c5f57]"
+              />
+
+              {/* Date Range Filters */}
+              <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-white border border-[#789d93] rounded px-1.5 py-0.5">
+                <span>From:</span>
+                <input
+                  type="date"
+                  value={billFromDate}
+                  onChange={(e) => setBillFromDate(e.target.value)}
+                  className="bg-transparent text-[11px] focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-white border border-[#789d93] rounded px-1.5 py-0.5">
+                <span>To:</span>
+                <input
+                  type="date"
+                  value={billToDate}
+                  onChange={(e) => setBillToDate(e.target.value)}
+                  className="bg-transparent text-[11px] focus:outline-none"
+                />
+              </div>
+
+              {/* Status Filters */}
+              {BILL_STATUS_FILTERS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={(event) => {
+                    setBillStatusFilter(option.value);
+                    event.currentTarget.blur();
+                  }}
+                  className={`px-2 py-0.5 rounded border text-[11px] font-bold cursor-pointer transition-colors ${
+                    billStatusFilter === option.value
+                      ? 'bg-[#2c5f57] text-white border-[#2c5f57]'
+                      : 'bg-white text-slate-700 border-[#789d93] hover:bg-slate-50'
+                  }`}
+                >
+                  {option.label} ({billStatusCounts[option.value]})
+                </button>
+              ))}
+
+              {(billSearch || billFromDate || billToDate || billStatusFilter !== 'ALL') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBillSearch('');
+                    setBillFromDate('');
+                    setBillToDate('');
+                    setBillStatusFilter('ALL');
+                  }}
+                  className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer"
+                >
+                  Reset Filters
+                </button>
+              )}
+
+              <span className="ml-auto text-[10px] font-semibold text-slate-600 bg-emerald-100/70 border border-emerald-300 px-2 py-0.5 rounded">
+                ⚡ Enter: Add & Next · Ctrl+Enter: Add All · ↑/↓: Move · Esc: Close
+              </span>
             </div>
 
             {/* Bills Table with Checkboxes */}
@@ -1386,16 +1881,73 @@ export const DebitNoteEntryPage: React.FC = () => {
                 </div>
               ) : eligibleBills.length === 0 ? (
                 <div className="p-12 text-center text-slate-500">
-                  <p className="font-bold text-slate-700">No eligible bills found for this party.</p>
-                  <p className="text-[11px] mt-1 text-slate-500">
-                    No matching real {noteType} invoices exist for {selectedParty?.partyName}.
-                  </p>
+                  {noteType === 'SALES' ? (
+                    <>
+                      <p className="font-bold text-slate-700">No source bills: Sales invoices are not implemented.</p>
+                      <p className="text-[11px] mt-1 text-slate-500">
+                        This BMS has no Sales Invoice module, so a SALES Debit Note has no original bills to pick.
+                        Switch Note Type to PURCHASE to load real purchase bills.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNoteType('PURCHASE');
+                          if (selectedParty && selectedParty.partyType === 'CUSTOMER') {
+                            setSelectedParty(null);
+                            setPartyBalance(null);
+                            setShowBillModal(false);
+                            setError('Note Type switched to PURCHASE. Select a supplier party, then reopen Select Original Bills.');
+                            return;
+                          }
+                          void handleOpenBillsModal('PURCHASE');
+                        }}
+                        className="mt-3 bg-[#2c5f57] hover:bg-[#204741] text-white px-3 py-1 rounded font-bold cursor-pointer"
+                      >
+                        Switch to PURCHASE
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-bold text-slate-700">No eligible bills found for this party.</p>
+                      <p className="text-[11px] mt-1 text-slate-500">
+                        No matching real {noteType} invoices exist for {selectedParty?.partyName}.
+                      </p>
+                    </>
+                  )}
+                </div>
+              ) : availableBills.length === 0 ? (
+                <div className="p-10 text-center text-slate-500">
+                  <p className="font-bold text-slate-700">All available bills have been added to the grid!</p>
+                  <p className="text-[11px] mt-1">Remove a grid row to pick that bill again or close the picker.</p>
+                  <button
+                    type="button"
+                    onClick={() => setShowBillModal(false)}
+                    className="mt-3 bg-[#2c5f57] text-white px-3 py-1 rounded font-bold cursor-pointer"
+                  >
+                    Done (Close)
+                  </button>
+                </div>
+              ) : filteredBills.length === 0 ? (
+                <div className="p-10 text-center text-slate-500">
+                  <p className="font-bold text-slate-700">No bills match the current filter.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBillSearch('');
+                      setBillFromDate('');
+                      setBillToDate('');
+                      setBillStatusFilter('ALL');
+                    }}
+                    className="mt-2 bg-slate-200 hover:bg-slate-300 text-slate-800 px-3 py-1 rounded font-bold cursor-pointer"
+                  >
+                    Clear filter
+                  </button>
                 </div>
               ) : (
                 <table className="w-full border-collapse text-xs">
                   <thead>
                     <tr className="bg-[#d5e7e1] text-slate-800 font-bold border-b border-[#789d93] text-left whitespace-nowrap">
-                      <th className="py-1 px-2 border-r border-[#789d93] text-center w-10">Tick</th>
+                      <th className="py-1 px-2 border-r border-[#789d93] text-center w-12">Tick</th>
                       <th className="py-1 px-2 border-r border-[#789d93]">Invoice No</th>
                       <th className="py-1 px-2 border-r border-[#789d93]">Date</th>
                       <th className="py-1 px-2 border-r border-[#789d93]">Item</th>
@@ -1403,16 +1955,20 @@ export const DebitNoteEntryPage: React.FC = () => {
                       <th className="py-1 px-2 border-r border-[#789d93]">Payment Date</th>
                       <th className="py-1 px-2 border-r border-[#789d93] text-right">Paid Amt</th>
                       <th className="py-1 px-2 border-r border-[#789d93] text-right">Un-Paid Amt</th>
-                      <th className="py-1 px-2 text-center">Txn Type</th>
+                      <th className="py-1 px-2 text-center border-r border-[#789d93]">Status</th>
+                      <th className="py-1 px-2 text-center">Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {eligibleBills.map((bill) => {
+                    {filteredBills.map((bill, index) => {
                       const isChecked = selectedBillIds.has(bill.id);
+                      const isRowActive = index === activeBillIndex;
+                      const status = getBillPaymentStatus(bill);
                       return (
                         <tr
                           key={bill.id}
                           onClick={() => {
+                            setActiveBillIndex(index);
                             setSelectedBillIds((prev) => {
                               const next = new Set(prev);
                               if (next.has(bill.id)) next.delete(bill.id);
@@ -1420,11 +1976,16 @@ export const DebitNoteEntryPage: React.FC = () => {
                               return next;
                             });
                           }}
-                          className={`border-b border-slate-100 cursor-pointer ${
-                            isChecked ? 'bg-emerald-50 font-bold' : 'hover:bg-slate-50'
+                          className={`border-b border-slate-100 cursor-pointer transition-colors ${
+                            isRowActive
+                              ? 'bg-emerald-100/90 ring-1 ring-inset ring-[#2c5f57]'
+                              : isChecked
+                              ? 'bg-emerald-50'
+                              : 'hover:bg-slate-50'
                           }`}
                         >
-                          <td className="py-1 px-2 border-r border-slate-200 text-center">
+                          <td className="py-1 px-2 border-r border-slate-200 text-center flex items-center justify-center gap-1">
+                            {isRowActive && <span className="text-[#2c5f57] font-bold text-xs">👉</span>}
                             <input
                               type="checkbox"
                               checked={isChecked}
@@ -1438,21 +1999,43 @@ export const DebitNoteEntryPage: React.FC = () => {
                           <td className="py-1 px-2 border-r border-slate-200 font-mono text-[11px]">
                             {new Date(bill.date).toLocaleDateString('en-IN')}
                           </td>
-                          <td className="py-1 px-2 border-r border-slate-200">{bill.item}</td>
+                          <td className="py-1 px-2 border-r border-slate-200">{bill.item || '—'}</td>
                           <td className="py-1 px-2 border-r border-slate-200 text-right font-mono font-bold">
                             ₹ {bill.billAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                           </td>
                           <td className="py-1 px-2 border-r border-slate-200 text-slate-500 font-mono text-[11px]">
                             {bill.paymentDate ? new Date(bill.paymentDate).toLocaleDateString('en-IN') : '—'}
                           </td>
-                          <td className="py-1 px-2 border-r border-slate-200 text-right font-mono text-emerald-700">
+                          <td className="py-1 px-2 border-r border-slate-200 text-right font-mono font-bold text-emerald-700">
                             ₹ {bill.paidAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                           </td>
-                          <td className="py-1 px-2 border-r border-slate-200 text-right font-mono text-red-600">
+                          <td className="py-1 px-2 border-r border-slate-200 text-right font-mono font-bold text-red-600">
                             ₹ {bill.unPaidAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                           </td>
-                          <td className="py-1 px-2 text-center text-[10px] font-bold text-slate-600">
-                            {bill.txnType}
+                          <td className="py-1 px-2 text-center border-r border-slate-200">
+                            <span
+                              className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                                status === 'PAID'
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                  : status === 'PARTIAL'
+                                  ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                  : 'bg-red-100 text-red-800 border border-red-300'
+                              }`}
+                            >
+                              {status}
+                            </span>
+                          </td>
+                          <td className="py-1 px-2 text-center">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAddSingleBill(bill);
+                              }}
+                              className="bg-[#2c5f57] hover:bg-[#204741] text-white px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer"
+                            >
+                              + Add
+                            </button>
                           </td>
                         </tr>
                       );
@@ -1464,24 +2047,38 @@ export const DebitNoteEntryPage: React.FC = () => {
 
             {/* Bottom summary and action */}
             <div className="p-3 bg-[#dce8e1] border-t border-slate-300 flex items-center justify-between">
-              <span className="font-bold text-slate-700">
-                Selected: {selectedBillIds.size} of {eligibleBills.length} bills
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="font-bold text-slate-700">
+                  Selected: {selectedBillIds.size} · Showing: {filteredBills.length} of {availableBills.length} available
+                </span>
+                <span className="text-[11px] text-slate-500">
+                  (Press <kbd className="bg-white px-1 rounded border border-slate-300 font-mono">Enter</kbd> to add row and continue)
+                </span>
+              </div>
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowBillModal(false)}
-                  className="bg-slate-200 hover:bg-slate-300 text-slate-800 px-3 py-1 rounded font-bold cursor-pointer"
+                  onClick={handleAddAllFilteredBills}
+                  disabled={filteredBills.length === 0}
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1 rounded font-bold cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                  title="Add all currently filtered bills to the grid"
                 >
-                  Cancel
+                  <span>⚡ Add All ({filteredBills.length})</span>
                 </button>
                 <button
                   type="button"
-                  onClick={handleAddSelectedBills}
+                  onClick={() => handleAddSelectedBills(false)}
                   disabled={selectedBillIds.size === 0}
                   className="bg-[#2c5f57] hover:bg-[#204741] text-white px-4 py-1 rounded font-bold cursor-pointer disabled:opacity-50"
                 >
-                  Add Selected Bills ({selectedBillIds.size})
+                  Add Selected ({selectedBillIds.size})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowBillModal(false)}
+                  className="bg-slate-300 hover:bg-slate-400 text-slate-800 px-3 py-1 rounded font-bold cursor-pointer"
+                >
+                  Done (Esc)
                 </button>
               </div>
             </div>

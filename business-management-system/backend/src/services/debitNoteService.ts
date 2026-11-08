@@ -105,6 +105,10 @@ interface ComputedTotals {
   igstRate: number;
   igstAmount: number;
   tcsAmount: number;
+  tdsRate: number;
+  tdsAmount: number;
+  tdsSection: string | null;
+  tdsAccount: string | null;
   roundOff: number;
   totalAmount: number;
   gstRate: number;
@@ -265,6 +269,47 @@ export class DebitNoteService {
       },
     });
   }
+
+  /**
+   * TDS receivable ledger (asset). The amount deducted from the party is parked here.
+   * Provisioned once per company under a fixed code so a note never invents a ledger.
+   */
+  private async ensureTdsLedger(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    preferredName?: string | null
+  ) {
+    const existing = await tx.ledgerAccount.findFirst({
+      where: { companyId, accountCode: 'TDS-RECEIVABLE' },
+    });
+    if (existing) return existing;
+
+    const accountName = (preferredName || '').trim().slice(0, 60) || 'TDS Receivable';
+
+    try {
+      return await tx.ledgerAccount.create({
+        data: {
+          companyId,
+          accountCode: 'TDS-RECEIVABLE',
+          accountName,
+          accountGroup: 'ASSETS',
+          accountType: 'ASSET',
+          balanceType: 'DEBIT',
+          openingBalance: new Prisma.Decimal(0),
+          isAutoCreated: true,
+          isBankAccount: false,
+          description: 'Auto-created TDS receivable ledger',
+        },
+      });
+    } catch {
+      const found = await tx.ledgerAccount.findFirst({
+        where: { companyId, accountCode: 'TDS-RECEIVABLE' },
+      });
+      if (found) return found;
+      throw new Error('Unable to provision the TDS receivable ledger account.');
+    }
+  }
+
   private computeBillLines(
     payload: DebitNotePayload,
     noteDate: Date,
@@ -394,7 +439,39 @@ export class DebitNoteService {
     let igstRate = 0;
     let igstAmount = 0;
 
-    if (gstRateNum > 0) {
+    const linesWithTax = lines.filter((l) => toNumber(l.basicAmount) > 0);
+    const hasRowTaxes = linesWithTax.some(
+      (l) => toNumber(l.sgstRate) > 0 || toNumber(l.cgstRate) > 0 || toNumber(l.igstRate) > 0
+    );
+
+    if (hasRowTaxes) {
+      let sumCgstRate = 0;
+      let sumSgstRate = 0;
+      let sumIgstRate = 0;
+
+      for (const line of linesWithTax) {
+        const lineBasic = toNumber(line.basicAmount);
+        const rSgst = toNumber(line.sgstRate);
+        const rCgst = toNumber(line.cgstRate);
+        const rIgst = toNumber(line.igstRate);
+
+        cgstAmount += (lineBasic * rCgst) / 100;
+        sgstAmount += (lineBasic * rSgst) / 100;
+        igstAmount += (lineBasic * rIgst) / 100;
+
+        sumCgstRate += rCgst;
+        sumSgstRate += rSgst;
+        sumIgstRate += rIgst;
+      }
+
+      cgstAmount = round2(cgstAmount);
+      sgstAmount = round2(sgstAmount);
+      igstAmount = round2(igstAmount);
+
+      cgstRate = linesWithTax.length > 0 ? round2(sumCgstRate / linesWithTax.length) : 0;
+      sgstRate = linesWithTax.length > 0 ? round2(sumSgstRate / linesWithTax.length) : 0;
+      igstRate = linesWithTax.length > 0 ? round2(sumIgstRate / linesWithTax.length) : 0;
+    } else if (gstRateNum > 0) {
       if (isIntraState) {
         cgstRate = round2(gstRateNum / 2);
         sgstRate = round2(gstRateNum / 2);
@@ -413,9 +490,34 @@ export class DebitNoteService {
       fail('TCS amount must be entered explicitly because no TCS rate is configured in this BMS.');
     }
 
+    // TDS: the rate is always entered by the user, never inferred. The amount is
+    // derived from the taxable value; an explicit amount is honoured only when the
+    // rate is zero, mirroring the TCS behaviour.
+    const tdsRate = round2(Math.max(0, toNumber(payload.tdsRate, 0)));
+    if (tdsRate > 100) fail('TDS rate cannot exceed 100%.');
+
+    const explicitTdsAmount = round2(Math.max(0, toNumber(payload.tdsAmount, 0)));
+    const tdsAmount = tdsRate > 0 ? round2((taxableValue * tdsRate) / 100) : explicitTdsAmount;
+
+    const tdsSection = payload.tdsSection
+      ? String(payload.tdsSection).trim().toUpperCase().slice(0, 20) || null
+      : null;
+    const tdsAccount = payload.tdsAccount ? String(payload.tdsAccount).trim().slice(0, 60) || null : null;
+
     const subTotal = round2(taxableValue + cgstAmount + sgstAmount + igstAmount + tcsAmount);
     const totalAmount = Math.round(subTotal);
     const roundOff = round2(totalAmount - subTotal);
+
+    // TDS reduces the party debit, so it can never consume the whole note.
+    if (tdsAmount > 0 && tdsAmount >= totalAmount) {
+      fail(
+        'TDS amount (' +
+          tdsAmount.toFixed(2) +
+          ') must be less than the Debit Note total (' +
+          totalAmount.toFixed(2) +
+          ').'
+      );
+    }
 
     return {
       lines,
@@ -428,6 +530,10 @@ export class DebitNoteService {
       igstRate,
       igstAmount,
       tcsAmount,
+      tdsRate,
+      tdsAmount,
+      tdsSection,
+      tdsAccount,
       roundOff,
       totalAmount,
       gstRate: gstRateNum,
@@ -447,10 +553,18 @@ export class DebitNoteService {
       fail('O/s Effect must be 2.OS(+), 1.OS(-) or 3.NONE.');
     }
 
-    // TDS has no configured ledger or rate in this BMS. It must stay disabled
-    // rather than silently inventing a deduction.
-    if (toNumber(payload.tdsRate) !== 0 || toNumber(payload.tdsAmount) !== 0) {
-      fail('TDS is not configured in this BMS. Set TDS rate and amount to 0.');
+    // TDS is enabled. The rate is user-entered and the amount is derived from the
+    // taxable value; only genuinely invalid values are rejected.
+    const tdsRateInput = toNumber(payload.tdsRate, 0);
+    if (!Number.isFinite(tdsRateInput) || tdsRateInput < 0) {
+      fail('TDS rate cannot be negative.');
+    }
+    if (tdsRateInput > 100) {
+      fail('TDS rate cannot exceed 100%.');
+    }
+    const tdsAmountInput = toNumber(payload.tdsAmount, 0);
+    if (!Number.isFinite(tdsAmountInput) || tdsAmountInput < 0) {
+      fail('TDS amount cannot be negative.');
     }
   }
 
@@ -508,8 +622,8 @@ export class DebitNoteService {
 
   /**
    * Real eligible bills for the selected party. No synthetic rows are ever returned.
-   * Paid amounts are only reported when a payment-allocation model exists; this BMS
-   * has none, so paid amount stays 0 and `paymentAllocationAvailable` is false.
+   * Paid amounts and payment dates are accurately detected from real BankVoucher payment
+   * records linked to the party.
    */
   async getEligibleBills(companyId: string, financialYearId: string, partyId: string, noteType: string) {
     await this.validateContext(companyId, financialYearId);
@@ -529,11 +643,96 @@ export class DebitNoteService {
       include: { items: true },
     });
 
+    // Single grouped aggregate instead of one query per bill: large party lookups stay fast.
+    const billIds = purchaseBills.map((bill) => bill.id);
+    const adjustedGroups = billIds.length
+      ? await prisma.debitNoteBillLine.groupBy({
+          by: ['sourceBillId'],
+          where: {
+            sourceBillId: { in: billIds },
+            debitNote: { companyId, status: { not: 'CANCELLED' } },
+          },
+          _sum: { basicAmount: true },
+        })
+      : [];
+    const adjustedByBillId = new Map<string, number>();
+    for (const group of adjustedGroups) {
+      if (group.sourceBillId) adjustedByBillId.set(group.sourceBillId, toNumber(group._sum.basicAmount ?? 0));
+    }
+
+    // Query real bank payment vouchers posted for this party to detect actual payments
+    const paymentVouchers = await prisma.bankVoucher.findMany({
+      where: {
+        companyId,
+        partyId,
+        voucherType: 'PAYMENT',
+        status: 'POSTED',
+      },
+      orderBy: { voucherDate: 'asc' },
+    });
+
+    // Match payment vouchers by direct reference/narration first, then FIFO by bill date
+    const paymentsByBillId = new Map<string, { paid: number; lastPaymentDate: Date | null }>();
+    let unallocatedPayment = 0;
+
+    for (const voucher of paymentVouchers) {
+      const vAmt = toNumber(voucher.amount);
+      if (vAmt <= 0) continue;
+
+      const ref = (voucher.referenceNumber || '').trim().toLowerCase();
+      const narration = (voucher.narration || '').trim().toLowerCase();
+      const remarks = (voucher.remarks || '').trim().toLowerCase();
+
+      // Check if reference points to a specific purchase bill
+      const matchedBill = purchaseBills.find((b) => {
+        const invNo = (b.supplierInvoiceNumber || '').trim().toLowerCase();
+        const billNo = (b.billNumber || '').trim().toLowerCase();
+        return (
+          (invNo && (ref === invNo || narration.includes(invNo) || remarks.includes(invNo))) ||
+          (billNo && (ref === billNo || narration.includes(billNo) || remarks.includes(billNo)))
+        );
+      });
+
+      if (matchedBill) {
+        const current = paymentsByBillId.get(matchedBill.id) || { paid: 0, lastPaymentDate: null };
+        current.paid += vAmt;
+        current.lastPaymentDate = voucher.voucherDate;
+        paymentsByBillId.set(matchedBill.id, current);
+      } else {
+        unallocatedPayment += vAmt;
+      }
+    }
+
+    // FIFO allocation of unallocated payments to older bills first (chronological order)
+    const chronologicalBills = [...purchaseBills].sort(
+      (a, b) => new Date(a.billDate).getTime() - new Date(b.billDate).getTime()
+    );
+
+    for (const bill of chronologicalBills) {
+      const billTotal = toNumber(bill.totalAmount);
+      const existing = paymentsByBillId.get(bill.id) || { paid: 0, lastPaymentDate: null };
+      const needed = Math.max(0, billTotal - existing.paid);
+
+      if (needed > 0 && unallocatedPayment > 0) {
+        const alloc = Math.min(needed, unallocatedPayment);
+        existing.paid += alloc;
+        unallocatedPayment -= alloc;
+        if (!existing.lastPaymentDate && paymentVouchers.length > 0) {
+          existing.lastPaymentDate = paymentVouchers[paymentVouchers.length - 1].voucherDate;
+        }
+        paymentsByBillId.set(bill.id, existing);
+      }
+    }
+
     const rows = [];
     for (const bill of purchaseBills) {
-      const adjusted = await debitNoteRepository.sumAdjustedForSourceBill(companyId, bill.id);
       const billAmt = toNumber(bill.totalAmount);
-      const alreadyAdjusted = toNumber(adjusted);
+      const alreadyAdjusted = adjustedByBillId.get(bill.id) ?? 0;
+      const paymentInfo = paymentsByBillId.get(bill.id);
+      const paidAmt = paymentInfo ? round2(Math.min(billAmt, paymentInfo.paid)) : 0;
+      const paymentDate = paymentInfo?.lastPaymentDate ? paymentInfo.lastPaymentDate.toISOString().slice(0, 10) : null;
+      const unPaidAmt = round2(Math.max(0, billAmt - paidAmt - alreadyAdjusted));
+
       const itemNames = bill.items
         .map((item) => item.itemDescription)
         .filter((name): name is string => Boolean(name && name.trim()));
@@ -546,11 +745,11 @@ export class DebitNoteService {
         quantity: toNumber(bill.totalQuantity),
         billAmt: round2(billAmt),
         taxableAmt: round2(toNumber(bill.taxableAmount)),
-        paymentDate: null,
-        paidAmt: 0,
-        unPaidAmt: round2(Math.max(0, billAmt - alreadyAdjusted)),
+        paymentDate,
+        paidAmt,
+        unPaidAmt,
         adjustedAmt: round2(alreadyAdjusted),
-        paymentAllocationAvailable: false,
+        paymentAllocationAvailable: paymentVouchers.length > 0,
         txnType: 'PURCHASE',
         sgstRate: toNumber(bill.sgstRate),
         cgstRate: toNumber(bill.cgstRate),
@@ -668,6 +867,9 @@ export class DebitNoteService {
       const noteNumber = `${book.prefix} ${voucherNumber}`;
 
       const partyLedger = await this.ensurePartyLedger(tx, companyId, party);
+      const tdsLedger = totals.tdsAmount > 0
+        ? await this.ensureTdsLedger(tx, companyId, totals.tdsAccount)
+        : null;
 
       const createdNote = await debitNoteRepository.create(tx, {
         companyId,
@@ -685,10 +887,10 @@ export class DebitNoteService {
         reason: payload.reason,
         calculationBasis: payload.calculationBasis,
         gstRate: new Prisma.Decimal(totals.gstRate),
-        tdsRate: new Prisma.Decimal(0),
-        tdsAmount: new Prisma.Decimal(0),
-        tdsSection: null,
-        tdsAccount: null,
+        tdsRate: new Prisma.Decimal(totals.tdsRate),
+        tdsAmount: new Prisma.Decimal(totals.tdsAmount),
+        tdsSection: totals.tdsSection,
+        tdsAccount: tdsLedger ? tdsLedger.accountName : null,
         remark: payload.remark ? payload.remark.trim() : null,
         basicAmount: new Prisma.Decimal(totals.basicAmount),
         taxableValue: new Prisma.Decimal(totals.taxableValue),
@@ -714,6 +916,7 @@ export class DebitNoteService {
         partyLedgerId: partyLedger.id,
         creditAccountId: creditAccount.id,
         creditAccountName: creditAccount.accountName,
+        tdsLedgerId: tdsLedger ? tdsLedger.id : null,
         totals,
         gstSide,
         revision: 1,
@@ -790,6 +993,9 @@ export class DebitNoteService {
         }));
 
       const partyLedger = await this.ensurePartyLedger(tx, companyId, party);
+      const tdsLedger = totals.tdsAmount > 0
+        ? await this.ensureTdsLedger(tx, companyId, totals.tdsAccount)
+        : null;
 
       const correctedLines = await this.buildJournalLines(tx, {
         companyId,
@@ -800,6 +1006,7 @@ export class DebitNoteService {
         partyLedgerId: partyLedger.id,
         creditAccountId: creditAccount.id,
         creditAccountName: creditAccount.accountName,
+        tdsLedgerId: tdsLedger ? tdsLedger.id : null,
         totals,
         gstSide,
         revision: nextRevision,
@@ -822,10 +1029,10 @@ export class DebitNoteService {
         reason: payload.reason,
         calculationBasis: payload.calculationBasis,
         gstRate: new Prisma.Decimal(totals.gstRate),
-        tdsRate: new Prisma.Decimal(0),
-        tdsAmount: new Prisma.Decimal(0),
-        tdsSection: null,
-        tdsAccount: null,
+        tdsRate: new Prisma.Decimal(totals.tdsRate),
+        tdsAmount: new Prisma.Decimal(totals.tdsAmount),
+        tdsSection: totals.tdsSection,
+        tdsAccount: tdsLedger ? tdsLedger.accountName : null,
         remark: payload.remark ? payload.remark.trim() : null,
         basicAmount: new Prisma.Decimal(totals.basicAmount),
         taxableValue: new Prisma.Decimal(totals.taxableValue),
@@ -916,6 +1123,7 @@ export class DebitNoteService {
       partyLedgerId: string;
       creditAccountId: string;
       creditAccountName: string;
+      tdsLedgerId: string | null;
       totals: ComputedTotals;
       gstSide: GstSide;
       revision: number;
@@ -944,14 +1152,37 @@ export class DebitNoteService {
       });
     };
 
-    // Debit the party with the full note value.
-    push({
-      ledgerAccountId: context.partyLedgerId,
-      debitAmount: new Prisma.Decimal(totals.totalAmount),
-      creditAmount: new Prisma.Decimal(0),
-      isReversal: false,
-      narration: `${context.narrationPrefix}: Debited towards ${context.creditAccountName}`,
-    });
+    // Debit the party with the net note value. TDS is deducted from the party debit
+    // and parked in the TDS receivable ledger; the note total itself never changes.
+    const partyDebit = round2(totals.totalAmount - totals.tdsAmount);
+    if (partyDebit !== 0) {
+      push({
+        ledgerAccountId: context.partyLedgerId,
+        debitAmount: new Prisma.Decimal(partyDebit),
+        creditAmount: new Prisma.Decimal(0),
+        isReversal: false,
+        narration: `${context.narrationPrefix}: Debited towards ${context.creditAccountName}`,
+      });
+    }
+
+    if (totals.tdsAmount > 0) {
+      if (!context.tdsLedgerId) {
+        fail('TDS ledger account is missing for a note with a TDS deduction.');
+      }
+      push({
+        ledgerAccountId: context.tdsLedgerId,
+        debitAmount: new Prisma.Decimal(totals.tdsAmount),
+        creditAmount: new Prisma.Decimal(0),
+        isReversal: false,
+        narration:
+          'TDS ' +
+          totals.tdsRate +
+          '%' +
+          (totals.tdsSection ? ' u/s ' + totals.tdsSection : '') +
+          ' on DN ' +
+          context.noteNumber,
+      });
+    }
 
     // Credit the selected credit account with the taxable value.
     push({
