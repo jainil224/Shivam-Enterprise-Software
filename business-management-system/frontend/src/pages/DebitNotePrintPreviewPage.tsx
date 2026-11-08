@@ -36,12 +36,13 @@ interface NoteSheetProps {
 }
 
 /**
- * Chandni ERP 100% Exact Debit Note Format
- * Matches reference image media_1794129309295_f7007221.png exactly:
- * - Single outer black border line with zero margin gaps
- * - Centered headers & edge-to-edge section divider lines
+ * Chandni ERP 100% Exact Debit Note Format (Matches Reference Screenshot Exactly):
+ * - White A4 sheet centered on gray background
+ * - White page margin surrounding the black border box
+ * - Crisp black border box enclosing all document content
+ * - Edge-to-edge internal divider lines touching the black box borders
  * - Continuous column gridlines through table body
- * - Basic Amount row with top and bottom borders
+ * - Basic Amount row with top and bottom horizontal lines
  * - Tax Summary with vertical divider line continuing down
  * - Amount in Words and Prepared By / Authorised Signatory footer
  */
@@ -85,288 +86,293 @@ const NoteSheet: React.FC<NoteSheetProps> = ({ note, copyLabel, landscape }) => 
     REASON_LABELS[note.reason] ||
     (note.reason === 'INTEREST' ? 'INTREST ON SALE' : note.reason);
 
+  const cleanNoteNumber = (note.noteNumber || '').replace(/-\s+/, '-').trim();
   const billLines = note.billLines || [];
 
   return (
     <div
-      className={`note-sheet bg-white border border-black shadow-2xl print:border print:border-black print:shadow-none w-full flex flex-col justify-between text-xs leading-normal text-black ${
-        landscape ? 'max-w-[297mm] min-h-[210mm]' : 'max-w-[210mm] min-h-[297mm]'
+      className={`note-sheet bg-white shadow-xl p-5 sm:p-7 print:p-0 w-full ${
+        landscape ? 'max-w-[297mm]' : 'max-w-[210mm]'
       }`}
       style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
     >
-      <div>
-        {/* 1. Header Section */}
-        <div className="text-center pt-2 pb-1.5 px-3 relative">
-          <div className="flex items-center justify-between text-[11px] font-bold tracking-widest text-black uppercase mb-0.5">
-            <span className="w-full text-center">!! SHREE GANESHAI NAMAH !!</span>
-            {copyLabel && (
-              <span className="absolute right-3 text-[10px] font-semibold text-slate-700 tracking-normal">
-                {copyLabel}
+      {/* ── Outer Black Border Box (Enclosing all document content) ── */}
+      <div className="border border-black flex flex-col justify-between text-xs leading-normal text-black min-h-[260mm]">
+        <div>
+          {/* 1. Header Section */}
+          <div className="text-center pt-2 pb-1.5 px-3 relative">
+            <div className="flex items-center justify-between text-[11px] font-bold tracking-widest text-black uppercase mb-0.5">
+              <span className="w-full text-center">!! SHREE GANESHAI NAMAH !!</span>
+              {copyLabel && (
+                <span className="absolute right-3 text-[10px] font-semibold text-slate-700 tracking-normal">
+                  {copyLabel}
+                </span>
+              )}
+            </div>
+
+            <h1 className="text-2xl font-black uppercase tracking-wide text-black mt-0.5 mb-0.5">
+              {companyName}
+            </h1>
+            <p className="text-[11px] text-black tracking-tight">{companyAddress}</p>
+            <p className="text-[11px] font-bold text-black pt-0.5">(MO) : {companyPhone}</p>
+
+            <div className="flex items-center justify-between text-[11px] font-bold text-black pt-1 px-1">
+              <span>GSTIN : {companyGstin || '—'}</span>
+              <span>
+                State &amp; Code : {companyStateCode ? `${companyStateCode} - ${companyState}` : companyState || '—'}
               </span>
-            )}
+              <span>PAN : {companyPan || '—'}</span>
+            </div>
           </div>
 
-          <h1 className="text-2xl font-black uppercase tracking-wide text-black mt-0.5 mb-0.5">
-            {companyName}
-          </h1>
-          <p className="text-[11px] text-black tracking-tight">{companyAddress}</p>
-          <p className="text-[11px] font-bold text-black pt-0.5">(MO) : {companyPhone}</p>
-
-          <div className="flex items-center justify-between text-[11px] font-bold text-black pt-1 px-1">
-            <span>GSTIN : {companyGstin || '—'}</span>
-            <span>
-              State &amp; Code : {companyStateCode ? `${companyStateCode} - ${companyState}` : companyState || '—'}
-            </span>
-            <span>PAN : {companyPan || '—'}</span>
+          {/* 2. DEBIT NOTE Title Bar */}
+          <div className="border-t border-b border-black py-0.5 text-center bg-transparent">
+            <h2 className="text-sm font-black tracking-widest uppercase">DEBIT NOTE</h2>
           </div>
-        </div>
 
-        {/* 2. DEBIT NOTE Title Bar */}
-        <div className="border-t border-b border-black py-0.5 text-center bg-transparent">
-          <h2 className="text-sm font-black tracking-widest uppercase">DEBIT NOTE</h2>
-        </div>
+          {/* 3. Party & Note Details Block */}
+          <div className="px-3 py-1.5 text-xs border-b border-black">
+            <div className="grid grid-cols-12 gap-2">
+              <div className="col-span-8 space-y-0.5">
+                <span className="font-bold text-black">M/s.</span>
+                <p className="font-black text-sm text-black uppercase">{partyName}</p>
+                <p className="text-[11px] text-black leading-tight pr-2">{partyAddress}</p>
+                <p className="text-[11px] font-mono font-bold text-black pt-0.5">
+                  GSTIN : {partyGstin || 'URP / Not Available'}
+                </p>
+              </div>
 
-        {/* 3. Party & Note Details Block */}
-        <div className="px-3 py-1.5 text-xs border-b border-black">
-          <div className="grid grid-cols-12 gap-2">
-            <div className="col-span-8 space-y-0.5">
-              <span className="font-bold text-black">M/s.</span>
-              <p className="font-black text-sm text-black uppercase">{partyName}</p>
-              <p className="text-[11px] text-black leading-tight pr-2">{partyAddress}</p>
-              <p className="text-[11px] font-mono font-bold text-black pt-0.5">
-                GSTIN : {partyGstin || 'URP / Not Available'}
+              <div className="col-span-4 flex justify-end">
+                <div className="space-y-0.5 text-xs font-medium">
+                  <div className="flex items-center">
+                    <span className="font-bold text-black w-28 text-left">Note No</span>
+                    <span className="text-black mr-2">:</span>
+                    <span className="font-mono font-bold text-black">{cleanNoteNumber}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="font-bold text-black w-28 text-left">Note Date</span>
+                    <span className="text-black mr-2">:</span>
+                    <span className="font-mono font-bold text-black">{fmtDate(note.noteDate)}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="font-bold text-black w-28 text-left">Party Note No</span>
+                    <span className="text-black mr-2">:</span>
+                    <span className="font-mono text-black">{note.partyNoteNo || ''}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-0.5 text-xs pt-1.5">
+              <p className="text-black">
+                Being the amount Debited to A/c. towards{' '}
+                <span className="font-black uppercase underline tracking-wide">
+                  {creditAccountName}
+                </span>
+              </p>
+              <p className="font-bold text-black text-xs">
+                Rs. &nbsp; : &nbsp; <span className="font-mono font-black">{money(grandTot)}</span>
+              </p>
+              <p className="text-[11px] text-black font-mono">
+                Remark : {note.remark || '—'}
               </p>
             </div>
+          </div>
 
-            <div className="col-span-4 text-right space-y-0.5 flex flex-col items-end justify-start font-medium text-xs">
-              <div className="flex gap-2">
-                <span className="font-bold text-black">Note No</span>
-                <span>:</span>
-                <span className="font-mono font-black text-black w-24 text-left">{note.noteNumber}</span>
-              </div>
-              <div className="flex gap-2">
-                <span className="font-bold text-black">Note Date</span>
-                <span>:</span>
-                <span className="font-mono font-bold text-black w-24 text-left">{fmtDate(note.noteDate)}</span>
-              </div>
-              <div className="flex gap-2">
-                <span className="font-bold text-black">Party Note No</span>
-                <span>:</span>
-                <span className="font-mono text-black w-24 text-left">{note.partyNoteNo || ''}</span>
-              </div>
+          {/* 4. Table with continuous vertical gridlines */}
+          <table className="w-full border-collapse text-xs text-black">
+            <thead>
+              <tr className="border-b border-black font-bold text-center">
+                <th className="border-r border-black py-1 px-1 w-[5%] text-center">Sr.</th>
+                <th className="border-r border-black py-1 px-2 w-[15%] text-center">Org. Bill No</th>
+                <th className="border-r border-black py-1 px-2 w-[16%] text-center">Org. Bill Date</th>
+                <th className="border-r border-black py-1 px-2 w-[14%] text-center">Quantity</th>
+                <th className="border-r border-black py-1 px-2 w-[16%] text-center">Bill Amount</th>
+                <th className="border-r border-black py-1 px-2 w-[14%] text-center">I.Days</th>
+                <th className="py-1 px-2 w-[20%] text-center">Note Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {billLines.map((line, idx) => (
+                <tr key={idx} className="text-black">
+                  <td className="border-r border-black py-0.5 px-1 text-center font-mono text-[11px]">
+                    {idx + 1}
+                  </td>
+                  <td className="border-r border-black py-0.5 px-2 font-mono text-center">
+                    {line.billNo}
+                  </td>
+                  <td className="border-r border-black py-0.5 px-2 font-mono text-center text-[11px]">
+                    {fmtDate(line.billDate)}
+                  </td>
+                  <td className="border-r border-black py-0.5 px-2 text-right font-mono">
+                    {parseFloat(String(line.quantity ?? 0)) > 0 ? money(line.quantity) : ''}
+                  </td>
+                  <td className="border-r border-black py-0.5 px-2 text-right font-mono">
+                    {money(line.billAmount)}
+                  </td>
+                  <td className="border-r border-black py-0.5 px-2 text-right font-mono">
+                    {parseFloat(String(line.interestDays ?? 0)) > 0
+                      ? parseFloat(String(line.interestDays ?? 0)).toFixed(2)
+                      : ''}
+                  </td>
+                  <td className="py-0.5 px-2 text-right font-mono font-medium">
+                    {money(line.basicAmount)}
+                  </td>
+                </tr>
+              ))}
+
+              {/* Spacer row to extend vertical lines down to the bottom of the table */}
+              <tr style={{ height: `${Math.max(140, 400 - billLines.length * 24)}px` }}>
+                <td className="border-r border-black"></td>
+                <td className="border-r border-black"></td>
+                <td className="border-r border-black"></td>
+                <td className="border-r border-black"></td>
+                <td className="border-r border-black"></td>
+                <td className="border-r border-black"></td>
+                <td></td>
+              </tr>
+            </tbody>
+
+            {/* 5. Table Footer: Basic Amount & Tax Summary with vertical divider line */}
+            <tfoot>
+              {/* Basic Amount Row with top and bottom horizontal lines */}
+              <tr className="border-t border-b border-black font-bold text-black">
+                <td colSpan={6} className="border-r border-black py-1 px-3 text-right font-bold">
+                  Basic Amount
+                </td>
+                <td className="py-1 px-2 text-right font-mono font-bold">
+                  {money(basicAmt)}
+                </td>
+              </tr>
+
+              {/* Taxable Value Row */}
+              <tr className="text-black">
+                <td colSpan={6} className="border-r border-black py-0.5 px-3 text-right font-bold">
+                  Taxable Value
+                </td>
+                <td className="py-0.5 px-2 text-right font-mono font-bold">
+                  {money(taxableVal)}
+                </td>
+              </tr>
+
+              {/* CGST Row */}
+              {cgstAmt !== 0 && (
+                <tr className="text-black">
+                  <td colSpan={6} className="border-r border-black py-0.5 px-3 text-right">
+                    <span className="inline-flex justify-between w-48">
+                      <span className="font-bold">CGST (+)</span>
+                      <span>{cgstRate.toFixed(2)} %</span>
+                    </span>
+                  </td>
+                  <td className="py-0.5 px-2 text-right font-mono">
+                    {money(cgstAmt)}
+                  </td>
+                </tr>
+              )}
+
+              {/* SGST Row */}
+              {sgstAmt !== 0 && (
+                <tr className="text-black">
+                  <td colSpan={6} className="border-r border-black py-0.5 px-3 text-right">
+                    <span className="inline-flex justify-between w-48">
+                      <span className="font-bold">SGST (+)</span>
+                      <span>{sgstRate.toFixed(2)} %</span>
+                    </span>
+                  </td>
+                  <td className="py-0.5 px-2 text-right font-mono">
+                    {money(sgstAmt)}
+                  </td>
+                </tr>
+              )}
+
+              {/* IGST Row */}
+              {igstAmt !== 0 && (
+                <tr className="text-black">
+                  <td colSpan={6} className="border-r border-black py-0.5 px-3 text-right">
+                    <span className="inline-flex justify-between w-48">
+                      <span className="font-bold">IGST (+)</span>
+                      <span>{igstRate.toFixed(2)} %</span>
+                    </span>
+                  </td>
+                  <td className="py-0.5 px-2 text-right font-mono">
+                    {money(igstAmt)}
+                  </td>
+                </tr>
+              )}
+
+              {/* TCS Row */}
+              {tcsAmt !== 0 && (
+                <tr className="text-black">
+                  <td colSpan={6} className="border-r border-black py-0.5 px-3 text-right">
+                    TCS (+)
+                  </td>
+                  <td className="py-0.5 px-2 text-right font-mono">
+                    {money(tcsAmt)}
+                  </td>
+                </tr>
+              )}
+
+              {/* Round Off Row */}
+              {roundOff !== 0 && (
+                <tr className="text-black">
+                  <td colSpan={6} className="border-r border-black py-0.5 px-3 text-right">
+                    Round Off ({roundOff > 0 ? '+' : '−'})
+                  </td>
+                  <td className="py-0.5 px-2 text-right font-mono">
+                    {money(Math.abs(roundOff))}
+                  </td>
+                </tr>
+              )}
+
+              {tdsAmt !== 0 && (
+                <tr className="text-red-700">
+                  <td colSpan={6} className="border-r border-black py-0.5 px-3 text-right font-medium">
+                    TDS (-) &nbsp; {tdsRateVal.toFixed(2)} %{tdsSectionVal ? ` (${tdsSectionVal})` : ''}
+                  </td>
+                  <td className="py-0.5 px-2 text-right font-mono font-semibold">
+                    {money(tdsAmt)}
+                  </td>
+                </tr>
+              )}
+
+              {/* Net Receivable Row */}
+              {tdsAmt !== 0 && (
+                <tr className="text-black font-semibold border-t border-slate-300">
+                  <td colSpan={6} className="border-r border-black py-0.5 px-3 text-right">
+                    Net Receivable
+                  </td>
+                  <td className="py-0.5 px-2 text-right font-mono">
+                    {money(grandTot - tdsAmt)}
+                  </td>
+                </tr>
+              )}
+            </tfoot>
+          </table>
+
+          {/* Closing line below tax summary */}
+          <div className="border-t border-black w-full" />
+        </div>
+
+        {/* 6. Footer: Amount in Words & Signatures */}
+        <div className="px-3 pt-3 pb-6 text-xs flex flex-col justify-between flex-1">
+          <div>
+            <p className="font-bold text-black">
+              Amount in Words : &nbsp;
+              <span className="italic font-normal uppercase text-black">{amountInWords(grandTot)}</span>
+            </p>
+          </div>
+
+          <div className="pt-24 flex justify-between items-end text-xs">
+            <div className="text-center">
+              <div className="w-32 border-t border-black mb-1"></div>
+              <span className="text-black text-[11px] font-semibold">Prepared By</span>
             </div>
-          </div>
 
-          <div className="space-y-0.5 text-xs pt-1.5">
-            <p className="text-black">
-              Being the amount Debited to A/c. towards{' '}
-              <span className="font-black uppercase underline tracking-wide">
-                {creditAccountName}
-              </span>
-            </p>
-            <p className="font-bold text-black text-xs">
-              Rs. &nbsp; : &nbsp; <span className="font-mono font-black">{money(grandTot)}</span>
-            </p>
-            <p className="text-[11px] text-black font-mono">
-              Remark : {note.remark || '—'}
-            </p>
-          </div>
-        </div>
-
-        {/* 4. Ledger Table with continuous vertical gridlines */}
-        <table className="w-full border-collapse text-xs text-black">
-          <thead>
-            <tr className="border-b border-black font-bold text-center">
-              <th className="border-r border-black py-1 px-1 w-[5%] text-center">Sr.</th>
-              <th className="border-r border-black py-1 px-2 w-[15%] text-center">Org. Bill No</th>
-              <th className="border-r border-black py-1 px-2 w-[16%] text-center">Org. Bill Date</th>
-              <th className="border-r border-black py-1 px-2 w-[14%] text-center">Quantity</th>
-              <th className="border-r border-black py-1 px-2 w-[16%] text-center">Bill Amount</th>
-              <th className="border-r border-black py-1 px-2 w-[14%] text-center">I.Days</th>
-              <th className="py-1 px-2 w-[20%] text-center">Note Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {billLines.map((line, idx) => (
-              <tr key={idx} className="text-black">
-                <td className="border-r border-black py-0.5 px-1 text-center font-mono text-[11px]">
-                  {idx + 1}
-                </td>
-                <td className="border-r border-black py-0.5 px-2 font-mono text-center">
-                  {line.billNo}
-                </td>
-                <td className="border-r border-black py-0.5 px-2 font-mono text-center text-[11px]">
-                  {fmtDate(line.billDate)}
-                </td>
-                <td className="border-r border-black py-0.5 px-2 text-right font-mono">
-                  {parseFloat(String(line.quantity ?? 0)) > 0 ? money(line.quantity) : ''}
-                </td>
-                <td className="border-r border-black py-0.5 px-2 text-right font-mono">
-                  {money(line.billAmount)}
-                </td>
-                <td className="border-r border-black py-0.5 px-2 text-right font-mono">
-                  {parseFloat(String(line.interestDays ?? 0)) > 0
-                    ? parseFloat(String(line.interestDays ?? 0)).toFixed(2)
-                    : ''}
-                </td>
-                <td className="py-0.5 px-2 text-right font-mono font-medium">
-                  {money(line.basicAmount)}
-                </td>
-              </tr>
-            ))}
-
-            {/* Spacer row to extend vertical lines down to the bottom of the table */}
-            <tr style={{ height: `${Math.max(120, 380 - billLines.length * 24)}px` }}>
-              <td className="border-r border-black"></td>
-              <td className="border-r border-black"></td>
-              <td className="border-r border-black"></td>
-              <td className="border-r border-black"></td>
-              <td className="border-r border-black"></td>
-              <td className="border-r border-black"></td>
-              <td></td>
-            </tr>
-          </tbody>
-
-          {/* 5. Table Footer: Basic Amount & Tax Summary with continuous vertical divider */}
-          <tfoot>
-            {/* Basic Amount Row with top and bottom borders */}
-            <tr className="border-t border-b border-black font-bold text-black">
-              <td colSpan={6} className="border-r border-black py-1 px-3 text-right font-bold">
-                Basic Amount
-              </td>
-              <td className="py-1 px-2 text-right font-mono font-bold">
-                {money(basicAmt)}
-              </td>
-            </tr>
-
-            {/* Taxable Value Row */}
-            <tr className="text-black">
-              <td colSpan={6} className="border-r border-black py-0.5 px-3 text-right font-bold">
-                Taxable Value
-              </td>
-              <td className="py-0.5 px-2 text-right font-mono font-bold">
-                {money(taxableVal)}
-              </td>
-            </tr>
-
-            {/* CGST Row */}
-            {cgstAmt !== 0 && (
-              <tr className="text-black">
-                <td colSpan={6} className="border-r border-black py-0.5 px-3 text-right">
-                  <span className="inline-flex justify-between w-48">
-                    <span className="font-bold">CGST (+)</span>
-                    <span>{cgstRate.toFixed(2)} %</span>
-                  </span>
-                </td>
-                <td className="py-0.5 px-2 text-right font-mono">
-                  {money(cgstAmt)}
-                </td>
-              </tr>
-            )}
-
-            {/* SGST Row */}
-            {sgstAmt !== 0 && (
-              <tr className="text-black">
-                <td colSpan={6} className="border-r border-black py-0.5 px-3 text-right">
-                  <span className="inline-flex justify-between w-48">
-                    <span className="font-bold">SGST (+)</span>
-                    <span>{sgstRate.toFixed(2)} %</span>
-                  </span>
-                </td>
-                <td className="py-0.5 px-2 text-right font-mono">
-                  {money(sgstAmt)}
-                </td>
-              </tr>
-            )}
-
-            {/* IGST Row */}
-            {igstAmt !== 0 && (
-              <tr className="text-black">
-                <td colSpan={6} className="border-r border-black py-0.5 px-3 text-right">
-                  <span className="inline-flex justify-between w-48">
-                    <span className="font-bold">IGST (+)</span>
-                    <span>{igstRate.toFixed(2)} %</span>
-                  </span>
-                </td>
-                <td className="py-0.5 px-2 text-right font-mono">
-                  {money(igstAmt)}
-                </td>
-              </tr>
-            )}
-
-            {/* TCS Row */}
-            {tcsAmt !== 0 && (
-              <tr className="text-black">
-                <td colSpan={6} className="border-r border-black py-0.5 px-3 text-right">
-                  TCS (+)
-                </td>
-                <td className="py-0.5 px-2 text-right font-mono">
-                  {money(tcsAmt)}
-                </td>
-              </tr>
-            )}
-
-            {/* Round Off Row */}
-            {roundOff !== 0 && (
-              <tr className="text-black">
-                <td colSpan={6} className="border-r border-black py-0.5 px-3 text-right">
-                  Round Off ({roundOff > 0 ? '+' : '−'})
-                </td>
-                <td className="py-0.5 px-2 text-right font-mono">
-                  {money(Math.abs(roundOff))}
-                </td>
-              </tr>
-            )}
-
-            {/* TDS Row */}
-            {tdsAmt !== 0 && (
-              <tr className="text-red-700">
-                <td colSpan={6} className="border-r border-black py-0.5 px-3 text-right font-medium">
-                  TDS (-) &nbsp; {tdsRateVal.toFixed(2)} %{tdsSectionVal ? ` (${tdsSectionVal})` : ''}
-                </td>
-                <td className="py-0.5 px-2 text-right font-mono font-semibold">
-                  {money(tdsAmt)}
-                </td>
-              </tr>
-            )}
-
-            {/* Net Receivable Row (if TDS applied) */}
-            {tdsAmt !== 0 && (
-              <tr className="text-black font-semibold border-t border-slate-300">
-                <td colSpan={6} className="border-r border-black py-0.5 px-3 text-right">
-                  Net Receivable
-                </td>
-                <td className="py-0.5 px-2 text-right font-mono">
-                  {money(grandTot - tdsAmt)}
-                </td>
-              </tr>
-            )}
-          </tfoot>
-        </table>
-
-        {/* Closing line below tax summary */}
-        <div className="border-t border-black w-full" />
-      </div>
-
-      {/* 6. Footer: Amount in Words & Signatures */}
-      <div className="px-3 pt-2 pb-4 text-xs flex flex-col justify-between flex-1">
-        <div>
-          <p className="font-bold text-black">
-            Amount in Words : &nbsp;
-            <span className="italic font-normal uppercase text-black">{amountInWords(grandTot)}</span>
-          </p>
-        </div>
-
-        <div className="pt-24 flex justify-between items-end text-xs">
-          <div className="text-center">
-            <div className="w-32 border-t border-black mb-1"></div>
-            <span className="text-black text-[11px] font-semibold">Prepared By</span>
-          </div>
-
-          <div className="text-right">
-            <p className="font-bold text-black uppercase text-[11px] mb-10">For, {companyName}</p>
-            <div className="inline-block border-t border-black pt-1 px-4">
-              <span className="text-black font-bold text-[11px]">Authorised Signatory</span>
+            <div className="text-right">
+              <p className="font-bold text-black uppercase text-[11px] mb-10">For, {companyName}</p>
+              <div className="inline-block border-t border-black pt-1 px-4">
+                <span className="text-black font-bold text-[11px]">Authorised Signatory</span>
+              </div>
             </div>
           </div>
         </div>
@@ -492,12 +498,18 @@ export const DebitNotePrintPreviewPage: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[#808080] flex flex-col items-center py-6 print:p-0 print:bg-white text-slate-900 font-sans">
+    <div className="min-h-screen bg-[#808080] flex flex-col items-center py-6 print:py-0 print:bg-white text-slate-900 font-sans">
       <style>{`
         @media print {
-          @page { size: A4 ${isLandscape ? 'landscape' : 'portrait'}; margin: 8mm; }
+          @page { size: A4 ${isLandscape ? 'landscape' : 'portrait'}; margin: 6mm; }
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .note-sheet { page-break-inside: avoid; border: 1.5px solid #000000 !important; box-shadow: none !important; width: 100% !important; margin: 0 !important; }
+          .note-sheet {
+            padding: 0 !important;
+            box-shadow: none !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+          }
         }
       `}</style>
 
