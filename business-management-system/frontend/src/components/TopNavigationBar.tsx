@@ -269,7 +269,7 @@ export const TopNavigationBar: React.FC<TopNavigationBarProps> = ({
                   { name: 'Yarn Purchase Bill', phase: 'Active', route: '/transactions/purchase', active: true },
                   { name: 'General Purchase Bill', phase: 'Phase 8' },
                   { name: 'Purchase Order', phase: 'Phase 8' },
-                  { name: 'Debit Note', phase: 'Phase 8' },
+                  { name: 'Debit Note', phase: 'Active', route: '/transactions/debit-notes/books', active: true },
                   { name: 'Bank Receipt Voucher', phase: 'Active', route: '/transactions/bank-receipts', active: true },
                   { name: 'Bank Payment Voucher', phase: 'Active', route: '/transactions/bank-payments', active: true },
                   { name: 'Cash Receipt Voucher', phase: 'Phase 9' },

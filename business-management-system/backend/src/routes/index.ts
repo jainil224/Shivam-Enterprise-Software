@@ -11,6 +11,8 @@ import { createBankVoucherRoutes } from './bankVoucherRoutes.js';
 import itemRoutes from './itemRoutes.js';
 import salesOrderRoutes from './salesOrderRoutes.js';
 import purchaseOrderRoutes from './purchaseOrderRoutes.js';
+import debitNoteBookRoutes from './debitNoteBookRoutes.js';
+import debitNoteRoutes from './debitNoteRoutes.js';
 
 const router = Router();
 
@@ -42,5 +44,11 @@ router.use('/bank-payments', createBankVoucherRoutes('PAYMENT'));
 router.use('/items', itemRoutes);
 router.use('/sales-orders', salesOrderRoutes);
 router.use('/purchase-orders', purchaseOrderRoutes);
+
+// Debit Note Module (Phase 14)
+router.use('/transactions/debit-note-books', debitNoteBookRoutes);
+router.use('/debit-note-books', debitNoteBookRoutes);
+router.use('/transactions/debit-notes', debitNoteRoutes);
+router.use('/debit-notes', debitNoteRoutes);
 
 export default router;

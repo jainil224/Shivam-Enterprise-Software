@@ -95,11 +95,12 @@ export const DASHBOARD_SHORTCUTS: ShortcutItem[] = [
   {
     id: 'debit_note',
     title: 'Debit Note',
-    description: 'Purchase returns, supplier weight deductions and purchase adjustments.',
+    description: 'Purchase returns, supplier weight deductions, interest and purchase adjustments.',
     category: 'Purchase',
     icon: FilePlus,
-    plannedPhase: 'Phase 8 (Purchase & Inward)',
-    implemented: false,
+    plannedPhase: 'Phase 14 (Debit Note Module)',
+    implemented: true,
+    route: '/transactions/debit-notes/books',
   },
   {
     id: 'item_master',

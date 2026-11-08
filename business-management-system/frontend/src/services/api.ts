@@ -973,3 +973,285 @@ export const runOrderReport = async (
   );
   return response.data.data;
 };
+
+// =============================================================
+// Phase 14: Debit Note APIs
+// =============================================================
+
+export interface DebitNoteBook {
+  id: string;
+  prefix: string;
+  bookName: string;
+  openingBalance: string;
+  balance: string;
+  balanceType: 'Dr' | 'Cr';
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DebitNoteBillLine {
+  id?: string;
+  lineNumber: number;
+  billNo: string;
+  billDate: string;
+  totalDays: number;
+  dharaDays: number;
+  interestDays: number;
+  paidAmount: number;
+  paidDate?: string | null;
+  itemDescription?: string | null;
+  quantity: number;
+  billTaxable: number;
+  billAmount: number;
+  unpaidAmount: number;
+  sgstRate: number;
+  cgstRate: number;
+  igstRate: number;
+  rate: number;
+  basicAmount: number;
+  sourceBillId?: string | null;
+  sourceBillType?: string | null;
+}
+
+export interface DebitNote {
+  id: string;
+  companyId: string;
+  financialYearId: string;
+  bookId: string;
+  voucherNumber: number;
+  noteNumber: string;
+  noteDate: string;
+  partyNoteNo?: string | null;
+  noteType: 'SALES' | 'PURCHASE' | 'BOTH';
+  partyId: string;
+  dueDays: number;
+  creditAccountId: string;
+  osEffect: string;
+  reason: 'CASH_DISCOUNT' | 'QUANTITY_DISCOUNT' | 'RATE_DIFFERENCE' | 'INTEREST' | 'TCS';
+  calculationBasis: 'BILL_AMOUNT' | 'TAXABLE_AMOUNT' | 'BASIC_AMOUNT';
+  gstRate: string | number;
+  tdsRate: string | number;
+  tdsAmount: string | number;
+  tdsSection?: string | null;
+  tdsAccount?: string | null;
+  remark?: string | null;
+  basicAmount: string | number;
+  taxableValue: string | number;
+  cgstRate: string | number;
+  cgstAmount: string | number;
+  sgstRate: string | number;
+  sgstAmount: string | number;
+  igstRate: string | number;
+  igstAmount: string | number;
+  tcsAmount: string | number;
+  roundOff: string | number;
+  totalAmount: string | number;
+  status: 'DRAFT' | 'CONFIRMED' | 'POSTED' | 'CANCELLED';
+  cancellationReason?: string | null;
+  cancelledAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  book?: DebitNoteBook;
+  party?: {
+    id: string;
+    partyName: string;
+    partyCode: string;
+    partyType: string;
+    gstin?: string | null;
+    panNumber?: string | null;
+    address?: string | null;
+    city?: string | null;
+    state?: string | null;
+    pincode?: string | null;
+    phone?: string | null;
+    openingBalance?: string | number;
+    balanceType?: string;
+  };
+  creditAccount?: {
+    id: string;
+    accountCode: string;
+    accountName: string;
+    accountGroup: string;
+  };
+  billLines: DebitNoteBillLine[];
+  journalLines?: any[];
+}
+
+export interface CreateDebitNotePayload {
+  bookId: string;
+  noteDate: string;
+  partyNoteNo?: string | null;
+  noteType: 'SALES' | 'PURCHASE' | 'BOTH';
+  partyId: string;
+  dueDays?: number;
+  creditAccountId: string;
+  osEffect?: string;
+  reason: 'CASH_DISCOUNT' | 'QUANTITY_DISCOUNT' | 'RATE_DIFFERENCE' | 'INTEREST' | 'TCS';
+  calculationBasis: 'BILL_AMOUNT' | 'TAXABLE_AMOUNT' | 'BASIC_AMOUNT';
+  gstRate?: number;
+  tcsAmount?: number;
+  tdsRate?: number;
+  tdsAmount?: number;
+  tdsSection?: string | null;
+  tdsAccount?: string | null;
+  remark?: string | null;
+  billLines: Array<{
+    billNo: string;
+    billDate: string;
+    totalDays?: number;
+    dharaDays?: number;
+    interestDays?: number;
+    paidAmount?: number;
+    paidDate?: string | null;
+    itemDescription?: string | null;
+    quantity?: number;
+    billTaxable?: number;
+    billAmount?: number;
+    unpaidAmount?: number;
+    sgstRate?: number;
+    cgstRate?: number;
+    igstRate?: number;
+    rate?: number;
+    basicAmount?: number;
+    sourceBillId?: string | null;
+    sourceBillType?: string | null;
+  }>;
+}
+
+export const getDebitNoteBooks = async (options?: { includeInactive?: boolean }): Promise<DebitNoteBook[]> => {
+  const response = await apiClient.get<ApiResponse<DebitNoteBook[]>>('/transactions/debit-note-books', {
+    params: options,
+  });
+  return response.data.data;
+};
+
+export const getDebitNoteBookById = async (id: string): Promise<DebitNoteBook> => {
+  const response = await apiClient.get<ApiResponse<DebitNoteBook>>(`/transactions/debit-note-books/${id}`);
+  return response.data.data;
+};
+
+export const createDebitNoteBook = async (payload: {
+  prefix: string;
+  bookName: string;
+  openingBalance?: number;
+  balanceType?: 'DEBIT' | 'CREDIT';
+}): Promise<DebitNoteBook> => {
+  const response = await apiClient.post<ApiResponse<DebitNoteBook>>('/transactions/debit-note-books', payload);
+  return response.data.data;
+};
+
+export const listDebitNotes = async (params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  bookId?: string;
+  partyId?: string;
+  noteType?: string;
+  reason?: string;
+  status?: string;
+  startDate?: string;
+  endDate?: string;
+}): Promise<{ data: DebitNote[]; pagination: { page: number; limit: number; total: number; totalPages: number } }> => {
+  const response = await apiClient.get<any>('/transactions/debit-notes', { params });
+  return response.data;
+};
+
+export const getDebitNoteById = async (id: string): Promise<DebitNote> => {
+  const response = await apiClient.get<ApiResponse<DebitNote>>(`/transactions/debit-notes/${id}`);
+  return response.data.data;
+};
+
+export const createDebitNote = async (payload: CreateDebitNotePayload): Promise<DebitNote> => {
+  const response = await apiClient.post<ApiResponse<DebitNote>>('/transactions/debit-notes', payload);
+  return response.data.data;
+};
+
+export const updateDebitNote = async (id: string, payload: CreateDebitNotePayload): Promise<DebitNote> => {
+  const response = await apiClient.put<ApiResponse<DebitNote>>(`/transactions/debit-notes/${id}`, payload);
+  return response.data.data;
+};
+
+export const cancelDebitNote = async (id: string, cancellationReason: string): Promise<DebitNote> => {
+  const response = await apiClient.post<ApiResponse<DebitNote>>(`/transactions/debit-notes/${id}/cancel`, {
+    cancellationReason,
+  });
+  return response.data.data;
+};
+
+export const getEligibleDebitNoteBills = async (partyId: string, noteType: string): Promise<any[]> => {
+  const response = await apiClient.get<ApiResponse<any[]>>('/transactions/debit-notes/eligible-bills', {
+    params: { partyId, noteType },
+  });
+  return response.data.data;
+};
+
+export const getDebitNoteNavigation = async (
+  id: string
+): Promise<{ previous: { id: string; noteNumber: string } | null; next: { id: string; noteNumber: string } | null }> => {
+  const response = await apiClient.get<ApiResponse<any>>(`/transactions/debit-notes/${id}/navigation`);
+  return response.data.data;
+};
+
+export interface DebitNoteSummary {
+  active: {
+    _count: { _all: number };
+    _sum: {
+      totalAmount: string | null;
+      taxableValue: string | null;
+      cgstAmount: string | null;
+      sgstAmount: string | null;
+      igstAmount: string | null;
+    };
+  };
+  cancelled: {
+    _count: { _all: number };
+    _sum: { totalAmount: string | null };
+  };
+  byType: Array<{
+    noteType: 'SALES' | 'PURCHASE' | 'BOTH';
+    _count: { _all: number };
+    _sum: { totalAmount: string | null };
+  }>;
+}
+
+export interface DebitNoteNextNumber {
+  bookId: string;
+  bookName: string;
+  prefix: string;
+  voucherNumber: number;
+  noteNumber: string;
+}
+
+export const getDebitNoteNextNumber = async (bookId: string): Promise<DebitNoteNextNumber> => {
+  const response = await apiClient.get<ApiResponse<DebitNoteNextNumber>>('/transactions/debit-notes/next-number', {
+    params: { bookId },
+  });
+  return response.data.data;
+};
+
+export const getDebitNoteSummary = async (): Promise<DebitNoteSummary> => {
+  const response = await apiClient.get<ApiResponse<DebitNoteSummary>>('/transactions/debit-notes/summary');
+  return response.data.data;
+};
+
+export const getDebitNotePartyBalance = async (
+  partyId: string
+): Promise<{ partyId: string; ledgerId: string | null; balance: string; balanceType: 'Dr' | 'Cr'; source: string }> => {
+  const response = await apiClient.get<ApiResponse<any>>('/transactions/debit-notes/party-balance', {
+    params: { partyId },
+  });
+  return response.data.data;
+};
+
+export const getDebitNotePrintRange = async (params: {
+  bookId?: string;
+  from: number;
+  to: number;
+  partyId?: string;
+}): Promise<DebitNote[]> => {
+  const response = await apiClient.get<ApiResponse<DebitNote[]>>('/transactions/debit-notes/print-range', {
+    params,
+  });
+  return response.data.data;
+};

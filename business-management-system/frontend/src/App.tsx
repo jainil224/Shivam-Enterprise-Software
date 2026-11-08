@@ -31,6 +31,10 @@ import { OrderRegisterPage } from './pages/OrderRegisterPage';
 import { OrderDetailPage } from './pages/OrderDetailPage';
 import { OrderPrintPage } from './pages/OrderPrintPage';
 import { OrderReportsPage } from './pages/OrderReportsPage';
+import { DebitNoteBookSelectionPage } from './pages/DebitNoteBookSelectionPage';
+import { DebitNoteEntryPage } from './pages/DebitNoteEntryPage';
+import { DebitNoteRegisterPage } from './pages/DebitNoteRegisterPage';
+import { DebitNotePrintPreviewPage } from './pages/DebitNotePrintPreviewPage';
 import { CompanyProvider } from './context/CompanyContext';
 import { UIModalProvider } from './context/UIModalContext';
 import { RequireCompanyContext } from './components/RequireCompanyContext';
@@ -358,6 +362,7 @@ export const App: React.FC = () => {
                   </RequireCompanyContext>
                 }
               />
+
               {/* Purchase Orders (Phase 13) */}
               <Route
                 path="/transactions/purchase-orders/reports"
@@ -407,6 +412,57 @@ export const App: React.FC = () => {
                   </RequireCompanyContext>
                 }
               />
+
+              {/* Debit Notes (Phase 14) */}
+              <Route
+                path="/transactions/debit-notes/books"
+                element={
+                  <RequireCompanyContext>
+                    <DebitNoteBookSelectionPage />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/debit-notes/new"
+                element={
+                  <RequireCompanyContext>
+                    <DebitNoteEntryPage />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/debit-notes/:id/edit"
+                element={
+                  <RequireCompanyContext>
+                    <DebitNoteEntryPage />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/debit-notes/:id/print"
+                element={
+                  <RequireCompanyContext>
+                    <DebitNotePrintPreviewPage />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/debit-notes/:id"
+                element={
+                  <RequireCompanyContext>
+                    <DebitNoteEntryPage />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/debit-notes"
+                element={
+                  <RequireCompanyContext>
+                    <DebitNoteRegisterPage />
+                  </RequireCompanyContext>
+                }
+              />
+
               {/* Technical System Status & Health */}
               <Route path="/system-status" element={<WelcomePage />} />
 
