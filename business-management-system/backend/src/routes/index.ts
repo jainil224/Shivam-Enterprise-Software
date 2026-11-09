@@ -13,6 +13,7 @@ import salesOrderRoutes from './salesOrderRoutes.js';
 import purchaseOrderRoutes from './purchaseOrderRoutes.js';
 import debitNoteBookRoutes from './debitNoteBookRoutes.js';
 import debitNoteRoutes from './debitNoteRoutes.js';
+import reportRoutes from './reportRoutes.js';
 
 const router = Router();
 
@@ -50,5 +51,8 @@ router.use('/transactions/debit-note-books', debitNoteBookRoutes);
 router.use('/debit-note-books', debitNoteBookRoutes);
 router.use('/transactions/debit-notes', debitNoteRoutes);
 router.use('/debit-notes', debitNoteRoutes);
+
+// Sales & Purchase Report - Bill Base (Phase 15)
+router.use('/reports', reportRoutes);
 
 export default router;

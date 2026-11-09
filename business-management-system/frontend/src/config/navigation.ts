@@ -334,3 +334,84 @@ export const MANUFACTURING_MENU_ITEMS: MenuItem[] = [
     implemented: false,
   },
 ];
+
+// -------------------------------------------------------------
+// Report Menu Hierarchy
+// Mirrors the reference report menu: Report > Final Reports > Sale/Pur Details.
+// Only entries with a real route are selectable; the rest stay labelled as planned.
+// -------------------------------------------------------------
+export const REPORT_MENU_ITEMS: MenuItem[] = [
+  {
+    title: 'Final Reports',
+    description: 'Final statutory and management reports built from posted documents.',
+    children: [
+      {
+        title: 'Sale/Pur Details',
+        description: 'Bill base sale and purchase reporting with grouping, print and Excel export.',
+        children: [
+          {
+            title: 'Sale/Pur Bill Base',
+            description: 'Read-only bill base report for purchase bills and purchase/sales debit notes.',
+            plannedPhase: 'Phase 15',
+            implemented: true,
+            route: '/reports/sales-purchase/bill-base',
+          },
+          {
+            title: 'Sale/Pur Bill Base - Item Wise',
+            description: 'Item wise bill base report. Requires stored item lines on every source document.',
+            plannedPhase: 'Phase 16',
+            implemented: false,
+          },
+          {
+            title: 'Sale/Pur Bill Base - Quality Wise',
+            description: 'Quality wise bill base report. Requires a quality field on every source document.',
+            plannedPhase: 'Phase 16',
+            implemented: false,
+          },
+        ],
+      },
+      {
+        title: 'Outstanding',
+        description: 'Party-wise receivables and payables with aging buckets.',
+        plannedPhase: 'Phase 9',
+        implemented: false,
+      },
+      {
+        title: 'Trial Balance',
+        description: 'Group-wise and detailed trial balance verifying debits and credits.',
+        plannedPhase: 'Phase 9',
+        implemented: false,
+      },
+      {
+        title: 'Trading Account',
+        description: 'Direct costs, yarn consumption and gross profit calculation.',
+        plannedPhase: 'Phase 9',
+        implemented: false,
+      },
+      {
+        title: 'Profit & Loss',
+        description: 'Periodic net profit analysis and operational overheads.',
+        plannedPhase: 'Phase 9',
+        implemented: false,
+      },
+      {
+        title: 'Balance Sheet',
+        description: 'Financial position statement with assets and liabilities.',
+        plannedPhase: 'Phase 9',
+        implemented: false,
+      },
+      {
+        title: 'Party Account Ledger',
+        description: 'Party wise ledger movement with opening and closing balance.',
+        plannedPhase: 'Phase 9',
+        implemented: false,
+      },
+      {
+        title: 'Day Book & Cash Book',
+        description: 'Date wise voucher register and cash book.',
+        plannedPhase: 'Phase 9',
+        implemented: false,
+      },
+    ],
+  },
+];

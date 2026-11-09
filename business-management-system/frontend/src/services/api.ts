@@ -41,6 +41,13 @@ import type {
   SalesOrder,
 } from '../types/orders';
 
+import type {
+  ReportItemDetailsResponse,
+  ReportOptionsResponse,
+  ReportRunRequest,
+  ReportRunResponse,
+} from '../types/reports';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export const apiClient = axios.create({
@@ -1252,6 +1259,43 @@ export const getDebitNotePrintRange = async (params: {
 }): Promise<DebitNote[]> => {
   const response = await apiClient.get<ApiResponse<DebitNote[]>>('/transactions/debit-notes/print-range', {
     params,
+  });
+  return response.data.data;
+};
+
+// -------------------------------------------------------------
+// Sales & Purchase Report - Bill Base (Phase 15)
+// -------------------------------------------------------------
+export const getReportBillBaseOptions = async (): Promise<ReportOptionsResponse> => {
+  const response = await apiClient.get<ApiResponse<ReportOptionsResponse>>('/reports/bill-base/options');
+  return response.data.data;
+};
+
+export const runReportBillBase = async (payload: ReportRunRequest): Promise<ReportRunResponse> => {
+  const response = await apiClient.post<ApiResponse<ReportRunResponse>>('/reports/bill-base/run', payload, {
+    timeout: 60000,
+  });
+  return response.data.data;
+};
+
+export const exportReportBillBaseXlsx = async (
+  payload: ReportRunRequest
+): Promise<{ blob: Blob; filename: string }> => {
+  const response = await apiClient.post('/reports/bill-base/export', payload, {
+    responseType: 'blob',
+    timeout: 120000,
+  });
+  const disposition = String(response.headers['content-disposition'] ?? '');
+  const match = /filename="?([^";]+)"?/.exec(disposition);
+  return { blob: response.data as Blob, filename: match ? match[1] : 'bill-base-report.xlsx' };
+};
+
+export const getReportBillBaseItemDetails = async (
+  sourceType: string,
+  sourceId: string
+): Promise<ReportItemDetailsResponse> => {
+  const response = await apiClient.get<ApiResponse<ReportItemDetailsResponse>>('/reports/bill-base/item-details', {
+    params: { sourceType, sourceId },
   });
   return response.data.data;
 };

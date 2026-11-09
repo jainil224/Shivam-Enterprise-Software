@@ -15,7 +15,8 @@
     "test:gstin:http": "tsx scripts/gstin-http-endpoint-test.ts",
     "test:phase12": "tsx scripts/phase12-bank-voucher-test.ts",
     "test:phase13": "tsx scripts/phase13-order-test.ts",
-    "test:phase14": "tsx scripts/phase14-debit-note-test.ts"
+    "test:phase14": "tsx scripts/phase14-debit-note-test.ts",
+    "test:phase15": "tsx scripts/phase15-report-test.ts"
   },
   "keywords": [
     "bms",

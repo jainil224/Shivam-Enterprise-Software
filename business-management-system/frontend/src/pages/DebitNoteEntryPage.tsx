@@ -661,10 +661,15 @@ export const DebitNoteEntryPage: React.FC = () => {
           const indexToAdd = Math.min(activeBillIndex, filteredBills.length - 1);
           const billToAdd = filteredBills[indexToAdd];
           if (billToAdd) {
+            const newRowIndex = gridRows.length;
             handleAddSingleBill(billToAdd);
-            // If only 1 bill was remaining, closing the picker
+            // If only 1 bill was remaining, close the picker and park focus on the
+            // new Bill Amt cell so the operator can keep pressing Enter.
             if (filteredBills.length <= 1) {
               setShowBillModal(false);
+              window.setTimeout(() => {
+                document.querySelector<HTMLElement>('[data-bill-amt-row="' + newRowIndex + '"]')?.focus();
+              }, 0);
             }
           }
         } else {
@@ -673,8 +678,15 @@ export const DebitNoteEntryPage: React.FC = () => {
       }
     };
 
-    window.addEventListener('keydown', handleModalKeyDown);
-    return () => window.removeEventListener('keydown', handleModalKeyDown);
+    // Attach on the next tick: the key press that opened the picker must not
+    // reach this handler and immediately close it again.
+    const attachTimer = window.setTimeout(() => {
+      window.addEventListener('keydown', handleModalKeyDown);
+    }, 0);
+    return () => {
+      window.clearTimeout(attachTimer);
+      window.removeEventListener('keydown', handleModalKeyDown);
+    };
   }, [
     showBillModal,
     filteredBills,
@@ -683,7 +695,11 @@ export const DebitNoteEntryPage: React.FC = () => {
     handleAddSingleBill,
     handleAddSelectedBills,
     handleAddAllFilteredBills,
+    gridRows.length,
   ]);
+
+  useEffect(() => {
+  }, [showBillModal]);
 
   // Focus the filter box as soon as the picker opens.
   useEffect(() => {
@@ -1335,8 +1351,16 @@ export const DebitNoteEntryPage: React.FC = () => {
                         <input
                           type="number"
                           step="0.01"
+                          tabIndex={0}
+                          data-bill-amt-row={idx}
                           value={row.billAmount === 0 ? '' : (row.billAmount ?? '')}
                           onFocus={(e) => e.target.select()}
+                          onClick={() => { void handleOpenBillsModal(); }}
+                          onKeyDown={(event) => {
+                            if (event.key !== 'Enter' && event.key !== ' ') return;
+                            event.preventDefault();
+                            void handleOpenBillsModal();
+                          }}
                           onChange={(e) => updateGridRow(idx, 'billAmount', e.target.value === '' ? '' : parseFloat(e.target.value))}
                           className="w-20 bg-transparent border-0 text-right font-mono font-bold text-slate-900 focus:bg-white focus:ring-1 focus:ring-[#2c5f57] px-1 py-0.5 text-xs"
                         />

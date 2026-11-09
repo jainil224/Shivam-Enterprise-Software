@@ -461,7 +461,7 @@ async function runSectionA(ctx: SuiteContext): Promise<{ note1Id: string; note2I
     payload(ctx, {
       bookId: ctx.secondBookId,
       gstRate: 0,
-      billLines: [line({ totalDays: 0, dharaDays: 0, basicAmount: 100, rate: 0 })],
+      billLines: [line({ totalDays: 0, dharaDays: 0, basicAmount: 100, rate: 0, sgstRate: 0, cgstRate: 0, igstRate: 0 })],
     })
   );
   assert(created2.voucherNumber === 1 && created2.noteNumber === 'DN2- 1', 'Second book issues DN2- 1');
@@ -478,7 +478,7 @@ async function runSectionA(ctx: SuiteContext): Promise<{ note1Id: string; note2I
   const thirdNote = await debitNotes.create(
     ctx.companyId,
     ctx.financialYearId,
-    payload(ctx, { gstRate: 0, billLines: [line({ totalDays: 0, basicAmount: 100, rate: 0 })] })
+    payload(ctx, { gstRate: 0, billLines: [line({ totalDays: 0, basicAmount: 100, rate: 0, sgstRate: 0, cgstRate: 0, igstRate: 0 })] })
   );
   assert(thirdNote.voucherNumber === 2, 'Third note uses book 1 voucher 2');
 
@@ -564,7 +564,9 @@ async function runSectionB(ctx: SuiteContext): Promise<void> {
     payload(ctx, {
       calculationBasis: 'TAXABLE_AMOUNT',
       gstRate: 12,
-      billLines: [line({ basicAmount: 100, rate: 0 })],
+      // Line rates take precedence over the header rate, so the header-rate path
+      // is exercised with zero-rated lines.
+      billLines: [line({ basicAmount: 100, rate: 0, sgstRate: 0, cgstRate: 0, igstRate: 0 })],
     })
   );
   assert(Number(gstNote.gstRate) === 12, 'GST rate is stored exactly as entered');
@@ -822,7 +824,12 @@ async function runSectionD(ctx: SuiteContext): Promise<void> {
   const tcsNote = await debitNotes.create(
     ctx.companyId,
     ctx.financialYearId,
-    payload(ctx, { reason: 'TCS', gstRate: 0, tcsAmount: 50, billLines: [line({ basicAmount: 100, rate: 0 })] })
+    payload(ctx, {
+      reason: 'TCS',
+      gstRate: 0,
+      tcsAmount: 50,
+      billLines: [line({ basicAmount: 100, rate: 0, sgstRate: 0, cgstRate: 0, igstRate: 0 })],
+    })
   );
   assert(close(Number(tcsNote.tcsAmount), 50), 'Explicit TCS amount is persisted');
   assert(close(Number(tcsNote.totalAmount), 150), 'TCS is added to the grand total');
@@ -839,7 +846,18 @@ async function runSectionD(ctx: SuiteContext): Promise<void> {
       tdsSection: '194c',
       tdsAccount: 'TDS Receivable',
       billLines: [
-        line({ billNo: 'PB-TDS', billDate: '2026-10-01', billTaxable: 1000, billAmount: 1000, unpaidAmount: 1000, rate: 0, basicAmount: 1000 }),
+        line({
+          billNo: 'PB-TDS',
+          billDate: '2026-10-01',
+          billTaxable: 1000,
+          billAmount: 1000,
+          unpaidAmount: 1000,
+          rate: 0,
+          basicAmount: 1000,
+          sgstRate: 0,
+          cgstRate: 0,
+          igstRate: 0,
+        }),
       ],
     })
   );
@@ -1106,7 +1124,12 @@ async function runSectionF(): Promise<void> {
   assert(printSrc.includes('note.partyNoteNo'), 'Party Note No is printed');
   assert(printSrc.includes('note.creditAccount?.accountName'), 'Credit Account description is printed');
   assert(printSrc.includes('note.remark'), 'Remarks are printed');
-  assert(printSrc.includes('note.billLines.map'), 'Original bill rows are printed');
+  // The print page derives `billLines` from `note.billLines` and maps that,
+  // so assert on the derivation and the render loop rather than a single literal.
+  assert(
+    printSrc.includes('const billLines = note.billLines') && printSrc.includes('billLines.map('),
+    'Original bill rows are printed'
+  );
   assert(printSrc.includes('line.quantity') && printSrc.includes('line.billAmount'), 'Quantity and bill amount are printed');
   assert(printSrc.includes('line.interestDays'), 'I.Days is printed');
   assert(printSrc.includes('line.basicAmount'), 'Note Amount is printed');

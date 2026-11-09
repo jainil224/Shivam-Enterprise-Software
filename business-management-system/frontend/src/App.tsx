@@ -35,6 +35,9 @@ import { DebitNoteBookSelectionPage } from './pages/DebitNoteBookSelectionPage';
 import { DebitNoteEntryPage } from './pages/DebitNoteEntryPage';
 import { DebitNoteRegisterPage } from './pages/DebitNoteRegisterPage';
 import { DebitNotePrintPreviewPage } from './pages/DebitNotePrintPreviewPage';
+import { ReportBillBaseConfigPage } from './pages/ReportBillBaseConfigPage';
+import { ReportBillBaseResultsPage } from './pages/ReportBillBaseResultsPage';
+import { ReportBillBasePrintPage } from './pages/ReportBillBasePrintPage';
 import { CompanyProvider } from './context/CompanyContext';
 import { UIModalProvider } from './context/UIModalContext';
 import { RequireCompanyContext } from './components/RequireCompanyContext';
@@ -459,6 +462,32 @@ export const App: React.FC = () => {
                 element={
                   <RequireCompanyContext>
                     <DebitNoteRegisterPage />
+                  </RequireCompanyContext>
+                }
+              />
+
+              {/* Phase 15 - Sales & Purchase Report (Bill Base) */}
+              <Route
+                path="/reports/sales-purchase/bill-base"
+                element={
+                  <RequireCompanyContext>
+                    <ReportBillBaseConfigPage />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/reports/sales-purchase/bill-base/results"
+                element={
+                  <RequireCompanyContext>
+                    <ReportBillBaseResultsPage />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/reports/sales-purchase/bill-base/print"
+                element={
+                  <RequireCompanyContext>
+                    <ReportBillBasePrintPage />
                   </RequireCompanyContext>
                 }
               />

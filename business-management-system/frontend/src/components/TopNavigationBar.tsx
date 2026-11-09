@@ -19,6 +19,8 @@ import {
 import { useCompany } from '../context/CompanyContext';
 import { useFavourites } from '../hooks/useFavourites';
 import { DASHBOARD_SHORTCUTS, MANUFACTURING_MENU_ITEMS, ShortcutItem } from '../config/navigation';
+import { REPORT_MENU_ITEMS } from '../config/navigation';
+import { ReportMenuPanel } from './ReportMenuPanel';
 
 interface TopNavigationBarProps {
   onOpenComingSoon: (title: string, plannedPhase: string, description: string) => void;
@@ -315,28 +317,24 @@ export const TopNavigationBar: React.FC<TopNavigationBarProps> = ({
             {activeMenu === 'report' && (
               <div className="absolute left-0 mt-1.5 w-64 bg-white rounded-lg shadow-xl border border-slate-200 py-1.5 text-slate-800 z-50 text-xs animate-in fade-in zoom-in-95 duration-100">
                 <div className="px-3 py-1.5 font-bold uppercase tracking-wider text-[10px] text-slate-400 border-b border-slate-100">
-                  Financial & Stock Reports
+                  Final Reports
                 </div>
-                {[
-                  'Outstanding Report (Debtors/Creditors)',
-                  'Trial Balance (Group-wise / Detailed)',
-                  'Trading Account',
-                  'Profit & Loss Statement',
-                  'Balance Sheet',
-                  'Party Account Ledger',
-                  'Day Book & Cash Book',
-                ].map((item, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => {
-                      setActiveMenu(null);
-                      onOpenComingSoon(item, 'Phase 9 (Accounting & Financial Reports)', `Calculates real-time accounting balances for ${item}.`);
-                    }}
-                    className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700 hover:text-blue-600"
-                  >
-                    {item}
-                  </button>
-                ))}
+                <ReportMenuPanel
+                  items={REPORT_MENU_ITEMS}
+                  onSelect={(item) => {
+                    setActiveMenu(null);
+                    setActiveSubMenu(null);
+                    if (item.implemented && item.route) {
+                      navigate(item.route);
+                    } else {
+                      onOpenComingSoon(
+                        item.title,
+                        item.plannedPhase ? item.plannedPhase + ' (Planned)' : 'Planned',
+                        item.description ?? 'Report screen for ' + item.title + '.'
+                      );
+                    }
+                  }}
+                />
               </div>
             )}
           </div>

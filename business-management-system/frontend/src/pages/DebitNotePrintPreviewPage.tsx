@@ -5,13 +5,6 @@ import { getDebitNoteById, getDebitNotePrintRange, DebitNote } from '../services
 import { amountInWords } from '../utils/amountInWords';
 import { Printer, ArrowLeft, Loader2, Sliders, Download } from 'lucide-react';
 
-const REASON_LABELS: Record<string, string> = {
-  CASH_DISCOUNT: 'CASH DISCOUNT',
-  QUANTITY_DISCOUNT: 'QUANTITY DISCOUNT',
-  RATE_DIFFERENCE: 'RATE DIFFERENCE',
-  INTEREST: 'INTREST ON SALE',
-  TCS: 'TCS',
-};
 
 const money = (value: string | number | null | undefined) =>
   parseFloat(String(value ?? 0)).toLocaleString('en-IN', {
@@ -81,10 +74,9 @@ const NoteSheet: React.FC<NoteSheetProps> = ({ note, copyLabel, landscape }) => 
   const roundOff = parseFloat(String(note.roundOff ?? 0));
   const grandTot = parseFloat(String(note.totalAmount ?? 0));
 
-  const creditAccountName =
-    note.creditAccount?.accountName ||
-    REASON_LABELS[note.reason] ||
-    (note.reason === 'INTEREST' ? 'INTREST ON SALE' : note.reason);
+  // Print the real credit ledger name. When the relation is absent the stored
+  // note reason is shown instead of inventing an account name.
+  const creditAccountName = note.creditAccount?.accountName || note.reason || '';
 
   const cleanNoteNumber = (note.noteNumber || '').replace(/-\s+/, '-').trim();
   const billLines = note.billLines || [];

@@ -1,0 +1,161 @@
+{
+  "results": [
+    {
+      "name": "Report menu lists Final Reports",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Final Reports flyout lists Sale/Pur Details",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Sale/Pur Details flyout lists Sale/Pur Bill Base",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Menu opens the report configuration route",
+      "ok": true,
+      "detail": "http://127.0.0.1:5173/reports/sales-purchase/bill-base"
+    },
+    {
+      "name": "Config screen renders its title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Config screen shows the active financial year",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Config lists all 20 report names",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Unavailable formats are labelled N/A",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Unavailable format button is disabled",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Sales mode is present but disabled",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Default bill date range is the FY range",
+      "ok": true,
+      "detail": "2026-04-01 -> 2026-11-09"
+    },
+    {
+      "name": "Item filter is disabled with no Item master rows",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Preview navigates to the results grid",
+      "ok": true,
+      "detail": "http://127.0.0.1:5173/reports/sales-purchase/bill-base/results"
+    },
+    {
+      "name": "Results header shows the report and format",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Results grid shows the 5 real purchase bills",
+      "ok": true,
+      "detail": "rows=5"
+    },
+    {
+      "name": "Results grid shows a dataset-wide TOTAL row",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Grand total matches the real purchase bill total",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Expanding a bill loads its stored item lines",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Grouping by party renders a group summary",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Group summary lists a real party",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Excel download has an .xlsx filename",
+      "ok": true,
+      "detail": "bill-base-report.xlsx"
+    },
+    {
+      "name": "Excel payload starts with the ZIP signature PK",
+      "ok": true,
+      "detail": "504b"
+    },
+    {
+      "name": "Excel payload is not JSON or CSV",
+      "ok": true,
+      "detail": "first byte=80"
+    },
+    {
+      "name": "Print action opens the A4 print preview",
+      "ok": true,
+      "detail": "http://127.0.0.1:5173/reports/sales-purchase/bill-base/print"
+    },
+    {
+      "name": "Print preview shows the company header",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Print preview shows the company GSTIN",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Print preview shows page numbering",
+      "ok": true,
+      "detail": "Page 1 of 1"
+    },
+    {
+      "name": "Print preview discloses the PDF mechanism",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Print preview renders at least one A4 sheet",
+      "ok": true,
+      "detail": "sheets=1"
+    },
+    {
+      "name": "Mobile: configuration screen renders",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Mobile: configuration screen has no page-level horizontal overflow",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "consoleIssues": [],
+  "failedRequests": []
+}
