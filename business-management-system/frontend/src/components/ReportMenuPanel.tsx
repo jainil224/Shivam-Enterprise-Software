@@ -10,12 +10,23 @@ interface ReportMenuPanelProps {
 interface ReportMenuLevelProps {
   items: MenuItem[];
   onSelect: (item: MenuItem) => void;
+  openPath: string[];
+  onOpenPathChange: (path: string[]) => void;
+  parentPath: string[];
   root?: boolean;
 }
 
-const ReportMenuLevel: React.FC<ReportMenuLevelProps> = ({ items, onSelect, root }) => {
-  const [openTitle, setOpenTitle] = useState<string | null>(null);
+const isPathOpen = (openPath: string[], path: string[]): boolean =>
+  openPath.length >= path.length && path.every((segment, index) => openPath[index] === segment);
 
+const ReportMenuLevel: React.FC<ReportMenuLevelProps> = ({
+  items,
+  onSelect,
+  openPath,
+  onOpenPathChange,
+  parentPath,
+  root,
+}) => {
   return (
     <div
       className={
@@ -29,35 +40,39 @@ const ReportMenuLevel: React.FC<ReportMenuLevelProps> = ({ items, onSelect, root
           Select Report
         </div>
       )}
+
       {items.map((item) => {
         const hasChildren = Boolean(item.children && item.children.length > 0);
+        const path = [...parentPath, item.title];
+        const expanded = hasChildren && isPathOpen(openPath, path);
         const badge = item.implemented ? 'Active' : item.plannedPhase ?? 'Planned';
+
         return (
-          <div
-            key={item.title}
-            className="relative"
-            onMouseEnter={() => {
-              if (hasChildren) setOpenTitle(item.title);
-            }}
-            onMouseLeave={() => {
-              if (hasChildren) setOpenTitle(null);
-            }}
-          >
+          <div key={item.title} className="relative">
             <button
               type="button"
               title={item.description ?? item.title}
+              aria-expanded={hasChildren ? expanded : undefined}
               onClick={() => {
-                if (hasChildren) {
-                  setOpenTitle(openTitle === item.title ? null : item.title);
+                if (!hasChildren) {
+                  onSelect(item);
                   return;
                 }
-                onSelect(item);
+                // Sections are click-to-open and never toggle closed on a second
+                // click, so "Final Reports" stays open while the user reads the
+                // rest of the menu. Picking a sibling section moves the open path.
+                onOpenPathChange(path);
               }}
               className="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center justify-between gap-2 text-slate-700 hover:text-blue-600"
             >
               <span className={item.implemented ? 'font-bold text-[#2c5f57]' : ''}>{item.title}</span>
               {hasChildren ? (
-                <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <ChevronRight
+                  className={
+                    'w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ' +
+                    (expanded ? 'rotate-90' : '')
+                  }
+                />
               ) : (
                 <span
                   className={
@@ -72,8 +87,14 @@ const ReportMenuLevel: React.FC<ReportMenuLevelProps> = ({ items, onSelect, root
               )}
             </button>
 
-            {hasChildren && openTitle === item.title && (
-              <ReportMenuLevel items={item.children ?? []} onSelect={onSelect} />
+            {hasChildren && expanded && (
+              <ReportMenuLevel
+                items={item.children ?? []}
+                onSelect={onSelect}
+                openPath={openPath}
+                onOpenPathChange={onOpenPathChange}
+                parentPath={path}
+              />
             )}
           </div>
         );
@@ -82,8 +103,19 @@ const ReportMenuLevel: React.FC<ReportMenuLevelProps> = ({ items, onSelect, root
   );
 };
 
-export const ReportMenuPanel: React.FC<ReportMenuPanelProps> = ({ items, onSelect }) => (
-  <ReportMenuLevel items={items} onSelect={onSelect} root />
-);
+export const ReportMenuPanel: React.FC<ReportMenuPanelProps> = ({ items, onSelect }) => {
+  const [openPath, setOpenPath] = useState<string[]>([]);
+
+  return (
+    <ReportMenuLevel
+      items={items}
+      onSelect={onSelect}
+      openPath={openPath}
+      onOpenPathChange={setOpenPath}
+      parentPath={[]}
+      root
+    />
+  );
+};
 
 export default ReportMenuPanel;

@@ -5,7 +5,8 @@ import {
   ChevronDown,
   Building2,
   Calendar,
-  Star,
+  Pin,
+  PinOff,
   ShieldCheck,
   ArrowRightLeft,
   Settings,
@@ -17,7 +18,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { useCompany } from '../context/CompanyContext';
-import { useFavourites } from '../hooks/useFavourites';
+import { useModulePreferences } from '../hooks/useModulePreferences';
 import { DASHBOARD_SHORTCUTS, MANUFACTURING_MENU_ITEMS, ShortcutItem } from '../config/navigation';
 import { REPORT_MENU_ITEMS } from '../config/navigation';
 import { ReportMenuPanel } from './ReportMenuPanel';
@@ -43,7 +44,23 @@ export const TopNavigationBar: React.FC<TopNavigationBarProps> = ({
 }) => {
   const navigate = useNavigate();
   const { activeCompany, activeFinancialYear } = useCompany();
-  const { favourites } = useFavourites();
+  const { pins, unpin, getUsageCount, usage } = useModulePreferences();
+
+  // Pinned modules keep the order the user pinned them in.
+  const pinnedItems = pins
+    .map((id) => DASHBOARD_SHORTCUTS.find((shortcut) => shortcut.id === id))
+    .filter((item): item is ShortcutItem => Boolean(item));
+
+  // Most launched modules, pinned ones excluded so nothing is listed twice.
+  const frequentlyUsedItems = DASHBOARD_SHORTCUTS.filter(
+    (item) => item.implemented && item.route && !pins.includes(item.id) && getUsageCount(item.id) > 0
+  )
+    .sort((a, b) => {
+      const countDelta = getUsageCount(b.id) - getUsageCount(a.id);
+      if (countDelta !== 0) return countDelta;
+      return (usage[b.id]?.lastUsedAt ?? 0) - (usage[a.id]?.lastUsedAt ?? 0);
+    })
+    .slice(0, 4);
 
   const [activeSubMenu, setActiveSubMenu] = useState<string | null>(null);
   const navRef = useRef<HTMLDivElement>(null);
@@ -79,9 +96,6 @@ export const TopNavigationBar: React.FC<TopNavigationBarProps> = ({
       onOpenComingSoon(item.title, item.plannedPhase, item.description);
     }
   };
-
-  // Find favourited items objects
-  const favouritedItems = DASHBOARD_SHORTCUTS.filter((s) => favourites.includes(s.id));
 
   return (
     <header className="bg-[#1f4842] text-slate-100 border-b border-[#112422] sticky top-0 z-40 shadow-md select-none" ref={navRef}>
@@ -318,7 +332,7 @@ export const TopNavigationBar: React.FC<TopNavigationBarProps> = ({
             {activeMenu === 'report' && (
               <div className="absolute left-0 mt-1.5 w-64 bg-white rounded-lg shadow-xl border border-slate-200 py-1.5 text-slate-800 z-50 text-xs animate-in fade-in zoom-in-95 duration-100">
                 <div className="px-3 py-1.5 font-bold uppercase tracking-wider text-[10px] text-slate-400 border-b border-slate-100">
-                  Final Reports
+                  Reports
                 </div>
                 <ReportMenuPanel
                   items={REPORT_MENU_ITEMS}
@@ -538,7 +552,7 @@ export const TopNavigationBar: React.FC<TopNavigationBarProps> = ({
             )}
           </div>
 
-          {/* ── 9. Favourites Menu ── */}
+          {/* ── 8. Pinned / Frequently Used Menu ── */}
           <div className="relative">
             <button
               onClick={() => toggleMenu('favourites')}
@@ -548,41 +562,78 @@ export const TopNavigationBar: React.FC<TopNavigationBarProps> = ({
                   : 'text-amber-300 hover:text-white hover:bg-slate-800/80'
               }`}
             >
-              <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-              <span>Favourites</span>
+              <Pin className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+              <span>Pinned</span>
               <ChevronDown className={`w-3 h-3 opacity-70 transition-transform ${activeMenu === 'favourites' ? 'rotate-180' : ''}`} />
             </button>
 
             {activeMenu === 'favourites' && (
               <div className="absolute left-0 mt-1.5 w-64 bg-white rounded-lg shadow-xl border border-slate-200 py-1.5 text-slate-800 z-50 text-xs animate-in fade-in zoom-in-95 duration-100">
                 <div className="px-3 py-1.5 font-bold uppercase tracking-wider text-[10px] text-slate-400 border-b border-slate-100 flex items-center justify-between">
-                  <span>Pinned Shortcuts ({favouritedItems.length})</span>
+                  <span>Pinned Modules ({pinnedItems.length})</span>
                   <span className="text-[9px] text-slate-400">Click to Launch</span>
                 </div>
 
-                {favouritedItems.length === 0 ? (
+                {pinnedItems.length === 0 ? (
                   <div className="px-4 py-3 text-center text-slate-400 text-xs">
-                    No favourite shortcuts marked yet. Click the star on any dashboard card to pin it here.
+                    No modules pinned yet. Click the pin icon on any dashboard card to pin it here.
                   </div>
                 ) : (
                   <div className="max-h-60 overflow-y-auto">
-                    {favouritedItems.map((item) => {
+                    {pinnedItems.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <div key={item.id} className="flex items-center group">
+                          <button
+                            type="button"
+                            onClick={() => handleShortcutClick(item)}
+                            className="flex-1 min-w-0 text-left px-3 py-2 hover:bg-slate-50 flex items-center space-x-2 text-slate-700 hover:text-blue-600"
+                          >
+                            <Icon className="w-4 h-4 text-slate-400 group-hover:text-blue-600 shrink-0" />
+                            <span className="flex-1 truncate">
+                              <span className="block font-semibold truncate">{item.title}</span>
+                              <span className="block text-[10px] text-slate-400 truncate">{item.category}</span>
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => unpin(item.id)}
+                            aria-label={'Unpin ' + item.title}
+                            title={'Unpin ' + item.title}
+                            className="mr-2 p-1 rounded text-slate-300 hover:text-amber-600 hover:bg-amber-50"
+                          >
+                            <PinOff className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {frequentlyUsedItems.length > 0 && (
+                  <>
+                    <div className="px-3 py-1.5 mt-1 font-bold uppercase tracking-wider text-[10px] text-slate-400 border-y border-slate-100 flex items-center justify-between">
+                      <span>Frequently Used</span>
+                      <span className="text-[9px] text-slate-400">Top {frequentlyUsedItems.length}</span>
+                    </div>
+                    {frequentlyUsedItems.map((item) => {
                       const Icon = item.icon;
                       return (
                         <button
                           key={item.id}
+                          type="button"
                           onClick={() => handleShortcutClick(item)}
-                          className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center space-x-2 text-slate-700 hover:text-blue-600 group"
+                          className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center space-x-2 text-slate-700 hover:text-[#2c5f57]"
                         >
-                          <Icon className="w-4 h-4 text-slate-400 group-hover:text-blue-600 shrink-0" />
-                          <div className="flex-1 truncate">
-                            <div className="font-semibold">{item.title}</div>
-                            <div className="text-[10px] text-slate-400 truncate">{item.category}</div>
-                          </div>
+                          <Icon className="w-4 h-4 text-slate-400 shrink-0" />
+                          <span className="flex-1 truncate font-medium">{item.title}</span>
+                          <span className="text-[10px] font-mono font-bold text-[#2c5f57] bg-emerald-50 border border-emerald-200 rounded px-1">
+                            {getUsageCount(item.id)}
+                          </span>
                         </button>
                       );
                     })}
-                  </div>
+                  </>
                 )}
               </div>
             )}

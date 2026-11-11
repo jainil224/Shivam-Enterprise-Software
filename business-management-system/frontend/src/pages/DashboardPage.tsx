@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Calendar,
-  Star,
+  Pin,
+  PinOff,
+  TrendingUp,
   ArrowRightLeft,
   Factory,
   Search,
@@ -11,14 +13,14 @@ import {
   ArrowUpRight,
 } from 'lucide-react';
 import { useCompany } from '../context/CompanyContext';
-import { useFavourites } from '../hooks/useFavourites';
+import { useModulePreferences } from '../hooks/useModulePreferences';
 import { useUIModals } from '../context/UIModalContext';
 import { DASHBOARD_SHORTCUTS, ShortcutItem } from '../config/navigation';
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { activeCompany, activeFinancialYear } = useCompany();
-  const { favourites, isFavourite, toggleFavourite } = useFavourites();
+  const { pins, isPinned, togglePin, unpin, getUsageCount, resetUsage, usage } = useModulePreferences();
   const { openComingSoon, openFySwitcher, openCompanyDetails } = useUIModals();
 
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -38,8 +40,22 @@ export const DashboardPage: React.FC = () => {
     return matchesCategory && matchesSearch;
   });
 
-  // Favourites items
-  const favouriteItems = DASHBOARD_SHORTCUTS.filter((s) => favourites.includes(s.id));
+  // Pinned modules, kept in the exact order the user pinned them.
+  const pinnedItems = pins
+    .map((id) => DASHBOARD_SHORTCUTS.find((shortcut) => shortcut.id === id))
+    .filter((item): item is ShortcutItem => Boolean(item));
+
+  // Frequently Used: ranked by recorded launches. Pinned modules are excluded
+  // so the two quick-launch surfaces never duplicate each other.
+  const frequentlyUsedItems = DASHBOARD_SHORTCUTS.filter(
+    (item) => item.implemented && item.route && !pins.includes(item.id) && getUsageCount(item.id) > 0
+  )
+    .sort((a, b) => {
+      const countDelta = getUsageCount(b.id) - getUsageCount(a.id);
+      if (countDelta !== 0) return countDelta;
+      return (usage[b.id]?.lastUsedAt ?? 0) - (usage[a.id]?.lastUsedAt ?? 0);
+    })
+    .slice(0, 4);
 
   const handleShortcutClick = (item: ShortcutItem) => {
     if (item.implemented && item.route) {
@@ -145,42 +161,123 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ── 2. Favourites Bar (If any favourited items exist) ─────────────── */}
-      {favouriteItems.length > 0 && (
-        <div className="bg-amber-50/50 rounded-xl border border-amber-200/70 p-4 shadow-2xs">
+      {/* ── 2. Pinned Modules (user-pinned quick launch) ──────────────────── */}
+      {pinnedItems.length > 0 && (
+        <section
+          aria-label="Pinned modules"
+          className="bg-amber-50/60 rounded-xl border border-amber-200/80 p-4 shadow-2xs"
+        >
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center space-x-2">
-              <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+              <Pin className="w-4 h-4 text-amber-600 fill-amber-600" />
               <h2 className="text-xs font-bold text-amber-900 uppercase tracking-wider">
-                Pinned Favourites ({favouriteItems.length})
+                Pinned Modules ({pinnedItems.length})
               </h2>
             </div>
-            <span className="text-[11px] text-amber-700 font-medium">Quick 1-Click Launch</span>
+            <span className="text-[11px] text-amber-700 font-medium">
+              One-click launch from the dashboard
+            </span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
-            {favouriteItems.map((item) => {
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5">
+            {pinnedItems.map((item) => {
               const Icon = item.icon;
+              return (
+                <div
+                  key={item.id}
+                  className="group flex items-center rounded-lg bg-white border border-amber-200/90 hover:border-amber-400 transition-all"
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleShortcutClick(item)}
+                    className="flex flex-1 min-w-0 items-center space-x-2 p-2.5 text-left"
+                    title={item.title}
+                  >
+                    <span className="p-1.5 rounded-md bg-amber-100 text-amber-800 group-hover:bg-amber-500 group-hover:text-white transition-colors shrink-0">
+                      <Icon className="w-3.5 h-3.5" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-xs font-bold text-slate-800 truncate">
+                        {item.title}
+                      </span>
+                      <span className="block text-[10px] text-slate-400 truncate">
+                        {item.category}
+                      </span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => unpin(item.id)}
+                    aria-label={'Unpin ' + item.title}
+                    title={'Unpin ' + item.title}
+                    className="m-1.5 p-1.5 rounded-md text-slate-300 hover:text-amber-600 hover:bg-amber-50 transition-colors shrink-0"
+                  >
+                    <PinOff className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* ── 3. Frequently Used (ranked by real launches) ──────────────────── */}
+      {frequentlyUsedItems.length > 0 && (
+        <section
+          aria-label="Frequently used modules"
+          className="bg-white rounded-xl border border-[#789d93]/50 p-4 shadow-2xs"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center space-x-2">
+              <TrendingUp className="w-4 h-4 text-[#2c5f57]" />
+              <h2 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Frequently Used
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={resetUsage}
+              className="text-[11px] font-semibold text-slate-400 hover:text-slate-700 underline underline-offset-2"
+              title="Clear the frequently used counters"
+            >
+              Reset counters
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5">
+            {frequentlyUsedItems.map((item) => {
+              const Icon = item.icon;
+              const launches = getUsageCount(item.id);
               return (
                 <button
                   key={item.id}
+                  type="button"
                   onClick={() => handleShortcutClick(item)}
-                  className="p-2.5 rounded-lg bg-white border border-amber-200/80 hover:border-amber-400 hover:shadow-xs transition-all flex items-center space-x-2 text-left group"
+                  className="group flex items-center space-x-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200 hover:border-[#2c5f57] hover:bg-white transition-all text-left"
+                  title={item.title}
                 >
-                  <div className="p-1.5 rounded-md bg-amber-100 text-amber-800 group-hover:bg-amber-500 group-hover:text-white transition-colors shrink-0">
+                  <span className="p-1.5 rounded-md bg-white text-slate-600 border border-slate-200 group-hover:bg-[#2c5f57] group-hover:text-white transition-colors shrink-0">
                     <Icon className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="text-xs font-bold text-slate-800 group-hover:text-amber-900 truncate">
-                    {item.title}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-xs font-bold text-slate-800 truncate">
+                      {item.title}
+                    </span>
+                    <span className="block text-[10px] text-slate-400 truncate">
+                      {launches} {launches === 1 ? 'launch' : 'launches'}
+                    </span>
+                  </span>
+                  <span className="text-[10px] font-mono font-bold text-[#2c5f57] bg-emerald-50 border border-emerald-200 rounded px-1.5 py-0.5 shrink-0">
+                    {launches}
                   </span>
                 </button>
               );
             })}
           </div>
-        </div>
+        </section>
       )}
 
-      {/* ── 3. Manufacturing Spotlight Banner ────────────────────────────── */}
+      {/* ── 4. Manufacturing Spotlight Banner ────────────────────────────── */}
       <div className="p-4 rounded-xl bg-gradient-to-r from-[#2c5f57] to-[#183330] text-white border border-[#112422] flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
         <div className="flex items-center space-x-3.5">
           <div className="p-2.5 bg-[#107c41] rounded-lg shadow-inner shrink-0">
@@ -229,7 +326,7 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ── 4. Main Shortcut Grid Header & Filters ───────────────────────── */}
+      {/* ── 5. Main Shortcut Grid Header & Filters ───────────────────────── */}
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
@@ -271,17 +368,24 @@ export const DashboardPage: React.FC = () => {
           ))}
         </div>
 
+        {pinnedItems.length === 0 && (
+          <p className="text-[11px] text-slate-600 bg-amber-50/70 border border-amber-200/70 rounded-lg px-3 py-2 flex items-center gap-1.5">
+            <Pin className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+            <span>Pin any module with the pin icon on its card. Pinned modules appear at the top of this page for one-click launch.</span>
+          </p>
+        )}
+
         {/* ── The 17 Shortcuts Grid ────────────────────────────────────────── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
           {filteredShortcuts.map((item) => {
             const Icon = item.icon;
-            const isFav = isFavourite(item.id);
+            const isFav = isPinned(item.id);
 
             return (
               <div
                 key={item.id}
                 onClick={() => handleShortcutClick(item)}
-                className="bg-white border border-[#b6d3ca] rounded-xl p-4 hover:border-blue-400 hover:shadow-md transition-all cursor-pointer relative group flex flex-col justify-between"
+                className={'bg-white border rounded-xl p-4 hover:shadow-md transition-all cursor-pointer relative group flex flex-col justify-between ' + (isFav ? 'border-amber-400 ring-1 ring-amber-200' : 'border-[#b6d3ca] hover:border-blue-400')}
               >
                 <div>
                   <div className="flex items-start justify-between">
@@ -290,21 +394,19 @@ export const DashboardPage: React.FC = () => {
                       <Icon className="w-5 h-5" />
                     </div>
 
-                    {/* Star Favourite Button */}
+                    {/* Pin Toggle */}
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        toggleFavourite(item.id);
+                        togglePin(item.id);
                       }}
-                      className={`p-1.5 rounded-md transition-colors ${
-                        isFav
-                          ? 'text-amber-500 hover:bg-amber-50'
-                          : 'text-slate-300 hover:text-amber-500 hover:bg-slate-100'
-                      }`}
-                      title={isFav ? 'Remove from favourites' : 'Mark as favourite'}
+                      aria-pressed={isFav}
+                      aria-label={isFav ? 'Unpin from dashboard' : 'Pin to dashboard'}
+                      title={isFav ? 'Unpin from dashboard' : 'Pin to dashboard'}
+                      className={'p-1.5 rounded-md border transition-colors ' + (isFav ? 'text-amber-600 bg-amber-50 border-amber-300 hover:bg-amber-100' : 'text-slate-300 border-transparent hover:text-amber-600 hover:bg-slate-100')}
                     >
-                      <Star className={`w-4 h-4 ${isFav ? 'fill-amber-500' : ''}`} />
+                      <Pin className={'w-4 h-4 ' + (isFav ? 'fill-amber-500' : '')} />
                     </button>
                   </div>
 
@@ -343,7 +445,7 @@ export const DashboardPage: React.FC = () => {
         )}
       </div>
 
-      {/* ── 5. Keyboard Shortcut Guide Bar ───────────────────────────────── */}
+      {/* ── 6. Keyboard Shortcut Guide Bar ───────────────────────────────── */}
       <div className="bg-slate-100/90 rounded-xl p-3.5 border border-slate-200/80 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
         <div className="flex items-center space-x-2">
           <Info className="w-4 h-4 text-slate-400 shrink-0" />
@@ -355,7 +457,7 @@ export const DashboardPage: React.FC = () => {
           <span><kbd className="px-1.5 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold text-slate-700">Alt+M</kbd> Master</span>
           <span><kbd className="px-1.5 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold text-slate-700">Alt+T</kbd> Transaction</span>
           <span><kbd className="px-1.5 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold text-slate-700">Alt+R</kbd> Reports</span>
-          <span><kbd className="px-1.5 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold text-slate-700">Alt+F</kbd> Favourites</span>
+          <span><kbd className="px-1.5 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold text-slate-700">Alt+F</kbd> Pinned</span>
           <span><kbd className="px-1.5 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold text-slate-700">Esc</kbd> Close Dialogs</span>
         </div>
       </div>

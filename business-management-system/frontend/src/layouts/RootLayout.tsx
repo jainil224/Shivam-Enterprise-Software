@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { TopNavigationBar } from '../components/TopNavigationBar';
 import { useUIModals } from '../context/UIModalContext';
+import { findShortcutByPath } from '../config/navigation';
+import { recordModuleUsage } from '../hooks/useModulePreferences';
 
 interface RootLayoutProps {
   children: React.ReactNode;
@@ -20,6 +22,25 @@ export const RootLayout: React.FC<RootLayoutProps> = ({ children }) => {
 
   // Navigation menu state
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+
+  // A route change always closes the navigation flyouts.
+  useEffect(() => {
+    setActiveMenu(null);
+  }, [location.pathname]);
+
+  // Record real launches for the "Frequently Used" ranking. The guard stops
+  // React StrictMode's double effect run (and same-route re-renders) from
+  // inflating the counter.
+  const lastTrackedPath = useRef<{ path: string; at: number }>({ path: '', at: 0 });
+  useEffect(() => {
+    const shortcut = findShortcutByPath(location.pathname);
+    if (!shortcut) return;
+    const now = Date.now();
+    const previous = lastTrackedPath.current;
+    if (previous.path === location.pathname && now - previous.at < 1000) return;
+    lastTrackedPath.current = { path: location.pathname, at: now };
+    recordModuleUsage(shortcut.id);
+  }, [location.pathname]);
 
   // Report windows own the whole viewport so their sticky action bars and A4
   // sheets are never pushed below the fold by the app chrome.
