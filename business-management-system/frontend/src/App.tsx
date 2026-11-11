@@ -35,6 +35,7 @@ import { DebitNoteBookSelectionPage } from './pages/DebitNoteBookSelectionPage';
 import { DebitNoteEntryPage } from './pages/DebitNoteEntryPage';
 import { DebitNoteRegisterPage } from './pages/DebitNoteRegisterPage';
 import { DebitNotePrintPreviewPage } from './pages/DebitNotePrintPreviewPage';
+import { ReportMastersPage } from './pages/ReportMastersPage';
 import { ReportBillBaseConfigPage } from './pages/ReportBillBaseConfigPage';
 import { ReportBillBaseResultsPage } from './pages/ReportBillBaseResultsPage';
 import { ReportBillBasePrintPage } from './pages/ReportBillBasePrintPage';
@@ -213,6 +214,14 @@ export const App: React.FC = () => {
               />
 
               {/* Ledger & Bank Account Master (Phase 12) */}
+              <Route
+                path="/masters/report-masters"
+                element={
+                  <RequireCompanyContext>
+                    <ReportMastersPage />
+                  </RequireCompanyContext>
+                }
+              />
               <Route
                 path="/masters/ledger-accounts"
                 element={

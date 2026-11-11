@@ -45,6 +45,7 @@ export interface ItemPayload {
   defaultPurchaseRate?: string | number | null;
   barcode?: string | null;
   description?: string | null;
+  itemGroupId?: string | null;
   yarnQualityId?: string | null;
   yarnGradeId?: string | null;
   yarnCount?: string | null;
@@ -70,6 +71,8 @@ export interface ItemView {
   defaultPurchaseRate: string;
   barcode: string | null;
   description: string | null;
+  itemGroupId: string | null;
+  itemGroupName: string | null;
   yarnQualityId: string | null;
   yarnQualityName: string | null;
   yarnGradeId: string | null;
@@ -108,6 +111,8 @@ function serialize(item: ItemWithRelations): ItemView {
     defaultPurchaseRate: parseFloat(item.defaultPurchaseRate.toFixed(4)).toFixed(4),
     barcode: item.barcode,
     description: item.description,
+    itemGroupId: item.itemGroupId,
+    itemGroupName: item.itemGroup?.groupName ?? null,
     yarnQualityId: item.yarnQualityId,
     yarnQualityName: item.yarnQuality?.qualityName ?? null,
     yarnGradeId: item.yarnGradeId,
@@ -257,6 +262,21 @@ export class ItemService {
       errors.push({ field: 'gstRate', message: 'GST rate cannot be negative.' });
     }
 
+    let itemGroupId = cleanText(payload.itemGroupId, 64);
+    if (itemGroupId) {
+      const group = await prisma.itemGroup.findFirst({
+        where: { id: itemGroupId, companyId },
+        select: { id: true },
+      });
+      if (!group) {
+        errors.push({
+          field: 'itemGroupId',
+          message: 'Selected item group does not belong to the active company.',
+        });
+        itemGroupId = null;
+      }
+    }
+
     let yarnQualityId = cleanText(payload.yarnQualityId, 64);
     if (yarnQualityId) {
       const quality = await prisma.yarnQuality.findFirst({
@@ -303,6 +323,7 @@ export class ItemService {
       defaultPurchaseRate,
       barcode: cleanText(payload.barcode, 50),
       description: cleanText(payload.description, 500),
+      itemGroupId,
       yarnQualityId,
       yarnGradeId,
       yarnCount: cleanText(payload.yarnCount, 30),
@@ -348,6 +369,7 @@ export class ItemService {
           : data.defaultPurchaseRate,
       barcode: keep<string | null>(data.barcode, existing.barcode),
       description: keep<string | null>(data.description, existing.description),
+      itemGroupId: keep<string | null>(data.itemGroupId, existing.itemGroupId),
       yarnQualityId: keep<string | null>(data.yarnQualityId, existing.yarnQualityId),
       yarnGradeId: keep<string | null>(data.yarnGradeId, existing.yarnGradeId),
       yarnCount: keep<string | null>(data.yarnCount, existing.yarnCount),
@@ -392,7 +414,12 @@ export class ItemService {
   }
 
   async getLookups(companyId: string) {
-    const [yarnQualities, yarnGrades] = await Promise.all([
+    const [itemGroups, yarnQualities, yarnGrades] = await Promise.all([
+      prisma.itemGroup.findMany({
+        where: { companyId, isActive: true },
+        select: { id: true, groupName: true },
+        orderBy: { groupName: 'asc' },
+      }),
       prisma.yarnQuality.findMany({
         where: { companyId, isActive: true },
         select: { id: true, qualityName: true, denier: true },
@@ -409,6 +436,7 @@ export class ItemService {
       itemTypes: ITEM_TYPES,
       units: UNIT_OF_MEASURES,
       gstRates: ['0', '5', '12', '18', '28'],
+      itemGroups,
       yarnQualities,
       yarnGrades,
     };

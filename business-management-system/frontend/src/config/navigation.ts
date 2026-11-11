@@ -30,6 +30,12 @@ export interface ShortcutItem {
   implemented: boolean;
   route?: string;
   hotkey?: string;
+  /**
+   * Extra path prefix used only for usage tracking. Modules with several routes
+   * (for example the debit note book selector, entry form and register) do not
+   * all live under the card's landing route.
+   */
+  matchPrefix?: string;
 }
 
 export const DASHBOARD_SHORTCUTS: ShortcutItem[] = [
@@ -101,6 +107,7 @@ export const DASHBOARD_SHORTCUTS: ShortcutItem[] = [
     plannedPhase: 'Phase 14 (Debit Note Module)',
     implemented: true,
     route: '/transactions/debit-notes/books',
+    matchPrefix: '/transactions/debit-notes',
   },
   {
     id: 'item_master',
@@ -174,6 +181,16 @@ export const DASHBOARD_SHORTCUTS: ShortcutItem[] = [
   },
 
   // --- Accounts & Financial Reports ---
+  {
+    id: 'bill_base_report',
+    title: 'Sale/Pur Bill Base Report',
+    description: 'Bill base sale and purchase report with grouping, print preview, PDF and Excel export.',
+    category: 'Reports',
+    icon: FileSpreadsheet,
+    plannedPhase: 'Phase 15 (Sales & Purchase Reports)',
+    implemented: true,
+    route: '/reports/sales-purchase/bill-base',
+  },
   {
     id: 'outstanding',
     title: 'Outstanding',
@@ -415,3 +432,36 @@ export const REPORT_MENU_ITEMS: MenuItem[] = [
     ],
   },
 ];
+
+// -------------------------------------------------------------
+// Route -> dashboard module resolution (usage tracking)
+// -------------------------------------------------------------
+const pathMatchesPrefix = (pathname: string, prefix: string): boolean =>
+  pathname === prefix || pathname.startsWith(prefix.endsWith('/') ? prefix : `${prefix}/`);
+
+/**
+ * Resolves the dashboard module a pathname belongs to. Used to record
+ * "Frequently Used" counters from real navigation, no matter which menu
+ * (dashboard card, top navigation, deep link) triggered it.
+ */
+export const findShortcutByPath = (pathname: string): ShortcutItem | undefined => {
+  let bestMatch: ShortcutItem | undefined;
+  let bestLength = -1;
+
+  for (const item of DASHBOARD_SHORTCUTS) {
+    if (!item.implemented) continue;
+    const prefixes = [item.route, item.matchPrefix].filter(
+      (prefix): prefix is string => typeof prefix === 'string' && prefix.length > 0
+    );
+
+    for (const prefix of prefixes) {
+      if (!pathMatchesPrefix(pathname, prefix)) continue;
+      if (prefix.length > bestLength) {
+        bestMatch = item;
+        bestLength = prefix.length;
+      }
+    }
+  }
+
+  return bestMatch;
+};

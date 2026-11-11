@@ -56,6 +56,10 @@ export interface DebitNotePayload {
   partyNoteNo?: string | null;
   noteType: 'SALES' | 'PURCHASE' | 'BOTH';
   partyId: string;
+  brokerId?: string | null;
+  transporterId?: string | null;
+  salespersonId?: string | null;
+  vehicleNumber?: string | null;
   dueDays?: number;
   creditAccountId: string;
   osEffect?: string;
@@ -142,6 +146,36 @@ export class DebitNoteService {
     }
 
     return { company, fy };
+  }
+
+  private async resolveReportRefs(companyId: string, payload: DebitNotePayload) {
+    const brokerId = payload.brokerId || null;
+    const transporterId = payload.transporterId || null;
+    const salespersonId = payload.salespersonId || null;
+
+    if (brokerId) {
+      const broker = await prisma.broker.findFirst({ where: { id: brokerId, companyId }, select: { id: true } });
+      if (!broker) fail('Selected broker does not belong to the active company.');
+    }
+    if (transporterId) {
+      const transporter = await prisma.transporter.findFirst({
+        where: { id: transporterId, companyId },
+        select: { id: true },
+      });
+      if (!transporter) fail('Selected transporter does not belong to the active company.');
+    }
+    if (salespersonId) {
+      const salesperson = await prisma.salesperson.findFirst({
+        where: { id: salespersonId, companyId },
+        select: { id: true },
+      });
+      if (!salesperson) fail('Selected salesperson does not belong to the active company.');
+    }
+
+    const vehicleNumber = payload.vehicleNumber ? payload.vehicleNumber.trim().toUpperCase() : null;
+    if (vehicleNumber && vehicleNumber.length > 20) fail('Vehicle number must be 20 characters or fewer.');
+
+    return { brokerId, transporterId, salespersonId, vehicleNumber };
   }
 
   private assertNoteDateInsideFinancialYear(noteDate: Date, fy: { startDate: Date; endDate: Date }) {
@@ -822,6 +856,7 @@ export class DebitNoteService {
     if (fy.isLocked) fail('Cannot create Debit Note in a locked financial year.');
 
     this.validateHeaderPayload(payload);
+    const reportRefs = await this.resolveReportRefs(companyId, payload);
 
     const book = await debitNoteBookRepository.findById(companyId, financialYearId, payload.bookId);
     if (!book || !book.isActive) fail('Active Debit Note Book not found.', 404);
@@ -881,6 +916,10 @@ export class DebitNoteService {
         partyNoteNo: payload.partyNoteNo ? payload.partyNoteNo.trim() : null,
         noteType: payload.noteType,
         partyId: party.id,
+        brokerId: reportRefs.brokerId,
+        transporterId: reportRefs.transporterId,
+        salespersonId: reportRefs.salespersonId,
+        vehicleNumber: reportRefs.vehicleNumber,
         dueDays: Math.max(0, Math.trunc(toNumber(payload.dueDays))),
         creditAccountId: creditAccount.id,
         osEffect: payload.osEffect || '2.OS(+)',
@@ -939,6 +978,7 @@ export class DebitNoteService {
     if (existing.status === 'CANCELLED') fail('Cannot edit a cancelled Debit Note.');
 
     this.validateHeaderPayload(payload);
+    const reportRefs = await this.resolveReportRefs(companyId, payload);
 
     const book = await debitNoteBookRepository.findById(companyId, financialYearId, existing.bookId);
     if (!book || !book.isActive) fail('Active Debit Note Book not found.', 404);
@@ -1023,6 +1063,10 @@ export class DebitNoteService {
         partyNoteNo: payload.partyNoteNo ? payload.partyNoteNo.trim() : null,
         noteType: payload.noteType,
         partyId: party.id,
+        brokerId: reportRefs.brokerId,
+        transporterId: reportRefs.transporterId,
+        salespersonId: reportRefs.salespersonId,
+        vehicleNumber: reportRefs.vehicleNumber,
         dueDays: Math.max(0, Math.trunc(toNumber(payload.dueDays))),
         creditAccountId: creditAccount.id,
         osEffect: payload.osEffect || '2.OS(+)',

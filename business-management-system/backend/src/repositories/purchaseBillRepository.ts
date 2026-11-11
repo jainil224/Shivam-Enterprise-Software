@@ -3,6 +3,7 @@ import { PrismaClient, Prisma } from '@prisma/client';
 const prisma = new PrismaClient();
 
 export interface CreatePurchaseBillItemInput {
+  itemId?: string | null;
   itemDescription: string;
   hsnCode?: string | null;
   quantity: number | Prisma.Decimal;
@@ -13,6 +14,8 @@ export interface CreatePurchaseBillItemInput {
   cartonNumber?: string | null;
   lotNumber?: string | null;
   grade?: string | null;
+  yarnQualityId?: string | null;
+  yarnGradeId?: string | null;
   cops?: number | null;
 }
 
@@ -23,6 +26,12 @@ export interface CreatePurchaseBillInput {
   billDate: Date;
   sourceChallanId?: string | null;
   partyId?: string | null;
+  bookId?: string | null;
+  brokerId?: string | null;
+  transporterId?: string | null;
+  salespersonId?: string | null;
+  deliveryPartyId?: string | null;
+  vehicleNumber?: string | null;
   supplierGstin?: string | null;
   supplierLegalName: string;
   supplierTradeName?: string | null;
@@ -112,6 +121,11 @@ export class PurchaseBillRepository {
           },
         },
         party: true,
+        deliveryParty: true,
+        book: true,
+        broker: true,
+        transporter: true,
+        salesperson: true,
         financialYear: true,
         company: true,
       },
@@ -181,6 +195,12 @@ export class PurchaseBillRepository {
           billDate: data.billDate,
           sourceChallanId: data.sourceChallanId || null,
           partyId: data.partyId || null,
+          bookId: data.bookId || null,
+          brokerId: data.brokerId || null,
+          transporterId: data.transporterId || null,
+          salespersonId: data.salespersonId || null,
+          deliveryPartyId: data.deliveryPartyId || null,
+          vehicleNumber: data.vehicleNumber?.trim() || null,
           supplierGstin: data.supplierGstin ? data.supplierGstin.trim().toUpperCase() : null,
           supplierLegalName: data.supplierLegalName.trim(),
           supplierTradeName: data.supplierTradeName?.trim() || null,
@@ -215,6 +235,7 @@ export class PurchaseBillRepository {
         await tx.purchaseBillItem.create({
           data: {
             purchaseBillId: bill.id,
+            itemId: item.itemId || null,
             itemDescription: item.itemDescription.trim(),
             hsnCode: item.hsnCode?.trim() || null,
             quantity: new Prisma.Decimal(item.quantity),
@@ -225,6 +246,8 @@ export class PurchaseBillRepository {
             cartonNumber: item.cartonNumber?.trim() || null,
             lotNumber: item.lotNumber?.trim() || null,
             grade: item.grade?.trim() || null,
+            yarnQualityId: item.yarnQualityId || null,
+            yarnGradeId: item.yarnGradeId || null,
             cops: item.cops !== undefined && item.cops !== null ? Number(item.cops) : null,
           },
         });
@@ -243,6 +266,11 @@ export class PurchaseBillRepository {
             },
           },
           party: true,
+          deliveryParty: true,
+          book: true,
+          broker: true,
+          transporter: true,
+          salesperson: true,
           financialYear: true,
         },
       });

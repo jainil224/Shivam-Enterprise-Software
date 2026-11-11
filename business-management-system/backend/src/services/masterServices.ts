@@ -8,6 +8,7 @@ import {
   ProductionBookRepository,
 } from '../repositories/masterRepositories.js';
 import { CompanyRepository } from '../repositories/companyRepository.js';
+import { PartyGroupRepository, AreaRepository } from '../repositories/reportMasterRepository.js';
 import { FinancialYearRepository } from '../repositories/financialYearRepository.js';
 import {
   validatePartyInput,
@@ -28,6 +29,8 @@ const yarnGradeRepo = new YarnGradeRepository();
 const productionBookRepo = new ProductionBookRepository();
 const companyRepo = new CompanyRepository();
 const fyRepo = new FinancialYearRepository();
+const partyGroupRepo = new PartyGroupRepository();
+const areaRepo = new AreaRepository();
 
 // Helper to assert company exists and is valid
 async function assertActiveCompany(companyId: string) {
@@ -43,6 +46,35 @@ async function assertActiveCompany(companyId: string) {
     throw error;
   }
   return company;
+}
+
+// Phase 15.2 - a party may only point at master data owned by the same company.
+async function assertPartyMasterRefs(
+  companyId: string,
+  data: { partyGroupId?: string | null; areaId?: string | null }
+) {
+  const errors: { field: string; message: string }[] = [];
+  if (data.partyGroupId) {
+    const group = await partyGroupRepo.findById(companyId, data.partyGroupId);
+    if (!group) {
+      errors.push({
+        field: 'partyGroupId',
+        message: 'Selected party group does not belong to the active company.',
+      });
+    }
+  }
+  if (data.areaId) {
+    const area = await areaRepo.findById(companyId, data.areaId);
+    if (!area) {
+      errors.push({ field: 'areaId', message: 'Selected area does not belong to the active company.' });
+    }
+  }
+  if (errors.length > 0) {
+    const error: any = new Error('Party validation failed.');
+    error.statusCode = 400;
+    error.errors = errors;
+    throw error;
+  }
 }
 
 // =============================================================
@@ -76,6 +108,8 @@ export class PartyService {
       throw error;
     }
 
+    await assertPartyMasterRefs(companyId, data);
+
     // Check duplicate party code within company
     const existing = await partyRepo.findByCode(companyId, data.partyCode);
     if (existing) {
@@ -98,6 +132,8 @@ export class PartyService {
       error.errors = validationErrors;
       throw error;
     }
+
+    await assertPartyMasterRefs(companyId, data);
 
     if (data.partyCode) {
       const existing = await partyRepo.findByCode(companyId, data.partyCode);

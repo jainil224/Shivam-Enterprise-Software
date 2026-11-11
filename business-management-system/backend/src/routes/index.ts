@@ -3,6 +3,7 @@ import healthRoutes from './healthRoutes.js';
 import companyRoutes from './companyRoutes.js';
 import financialYearRoutes from './financialYearRoutes.js';
 import masterRoutes from './masterRoutes.js';
+import reportMasterRoutes from './reportMasterRoutes.js';
 import productionReceiveRoutes from './productionReceiveRoutes.js';
 import gstinRoutes from './gstinRoutes.js';
 import purchaseBillRoutes from './purchaseBillRoutes.js';
@@ -26,6 +27,7 @@ router.use('/financial-years', financialYearRoutes);
 
 // Master Management (Phase 5)
 router.use('/masters', masterRoutes);
+router.use('/masters', reportMasterRoutes);
 
 // Manufacturing & Production Receive (Phase 7)
 router.use('/manufacturing/production-receive', productionReceiveRoutes);

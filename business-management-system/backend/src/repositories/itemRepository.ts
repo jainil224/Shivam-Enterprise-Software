@@ -3,6 +3,7 @@ import { ItemType, Prisma, PrismaClient, UnitOfMeasure } from '@prisma/client';
 const prisma = new PrismaClient();
 
 export const ITEM_INCLUDE = {
+  itemGroup: { select: { id: true, groupName: true } },
   yarnQuality: { select: { id: true, qualityName: true, denier: true } },
   yarnGrade: { select: { id: true, gradeName: true } },
 } satisfies Prisma.ItemInclude;
@@ -27,6 +28,7 @@ export interface ItemWriteData {
   defaultPurchaseRate: Prisma.Decimal;
   barcode: string | null;
   description: string | null;
+  itemGroupId: string | null;
   yarnQualityId: string | null;
   yarnGradeId: string | null;
   yarnCount: string | null;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Users, AlertCircle, Save } from 'lucide-react';
-import { Party, PartyType, BalanceType } from '../types';
-import { createParty, updateParty } from '../services/api';
+import { Party, PartyType, BalanceType, PartyGroupRecord, AreaRecord } from '../types';
+import { createParty, updateParty, getPartyGroups, getAreas } from '../services/api';
 
 interface PartyModalProps {
   isOpen: boolean;
@@ -33,6 +33,14 @@ export const PartyModal: React.FC<PartyModalProps> = ({
   const [balanceType, setBalanceType] = useState<BalanceType>('DEBIT');
   const [isActive, setIsActive] = useState(true);
 
+  // Phase 15.2 - report master references (Party Group / Area)
+  const [partyGroupId, setPartyGroupId] = useState('');
+  const [areaId, setAreaId] = useState('');
+  const [partyGroups, setPartyGroups] = useState<PartyGroupRecord[]>([]);
+  const [areas, setAreas] = useState<AreaRecord[]>([]);
+  const [mastersLoading, setMastersLoading] = useState(false);
+  const [mastersError, setMastersError] = useState<string | null>(null);
+
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -53,6 +61,8 @@ export const PartyModal: React.FC<PartyModalProps> = ({
       setOpeningBalance(String(partyToEdit.openingBalance || '0.00'));
       setBalanceType(partyToEdit.balanceType || 'DEBIT');
       setIsActive(partyToEdit.isActive !== false);
+      setPartyGroupId(partyToEdit.partyGroupId || '');
+      setAreaId(partyToEdit.areaId || '');
     } else {
       setPartyCode('');
       setPartyName('');
@@ -68,10 +78,41 @@ export const PartyModal: React.FC<PartyModalProps> = ({
       setOpeningBalance('0.00');
       setBalanceType('DEBIT');
       setIsActive(true);
+      setPartyGroupId('');
+      setAreaId('');
     }
     setFieldErrors({});
     setGeneralError(null);
   }, [partyToEdit, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    setMastersLoading(true);
+    setMastersError(null);
+    Promise.all([getPartyGroups(), getAreas()])
+      .then(([groupList, areaList]) => {
+        if (cancelled) return;
+        setPartyGroups(groupList);
+        setAreas(areaList);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setPartyGroups([]);
+        setAreas([]);
+        setMastersError(
+          err instanceof Error
+            ? 'Could not load party groups / areas: ' + err.message
+            : 'Could not load party groups / areas.'
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setMastersLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -140,6 +181,8 @@ export const PartyModal: React.FC<PartyModalProps> = ({
       openingBalance: Number(openingBalance) || 0,
       balanceType,
       isActive,
+      partyGroupId: partyGroupId || null,
+      areaId: areaId || null,
     };
 
     try {
@@ -281,6 +324,63 @@ export const PartyModal: React.FC<PartyModalProps> = ({
               {fieldErrors.panNumber && <p className="text-[11px] text-rose-600 mt-1">{fieldErrors.panNumber}</p>}
             </div>
           </div>
+
+          {/* Section 2.1: Report Master Classification (Phase 15.2) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Party Group</label>
+              <select
+                value={partyGroupId}
+                onChange={(e) => setPartyGroupId(e.target.value)}
+                disabled={mastersLoading}
+                className={`w-full px-3 py-2 text-xs rounded-lg border ${
+                  fieldErrors.partyGroupId ? 'border-rose-500 ring-1 ring-rose-500' : 'border-slate-300'
+                } focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-slate-100`}
+              >
+                <option value="">{mastersLoading ? 'Loading groups...' : 'Unassigned'}</option>
+                {partyGroups.map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.groupName}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-slate-500 mt-1">
+                Used by the Group + Party Wise report format.
+              </p>
+              {fieldErrors.partyGroupId && (
+                <p className="text-[11px] text-rose-600 mt-1">{fieldErrors.partyGroupId}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Area</label>
+              <select
+                value={areaId}
+                onChange={(e) => setAreaId(e.target.value)}
+                disabled={mastersLoading}
+                className={`w-full px-3 py-2 text-xs rounded-lg border ${
+                  fieldErrors.areaId ? 'border-rose-500 ring-1 ring-rose-500' : 'border-slate-300'
+                } focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-slate-100`}
+              >
+                <option value="">{mastersLoading ? 'Loading areas...' : 'Unassigned'}</option>
+                {areas.map((area) => (
+                  <option key={area.id} value={area.id}>
+                    {area.areaName}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-slate-500 mt-1">
+                Used by the Area Wise report format.
+              </p>
+              {fieldErrors.areaId && <p className="text-[11px] text-rose-600 mt-1">{fieldErrors.areaId}</p>}
+            </div>
+          </div>
+
+          {mastersError && (
+            <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              {mastersError} You can still save the party without a group or area.
+            </p>
+          )}
 
           {/* Section 3: Address & Location */}
           <div className="space-y-3">

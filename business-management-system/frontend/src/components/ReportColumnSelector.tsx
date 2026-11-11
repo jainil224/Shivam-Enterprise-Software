@@ -9,6 +9,7 @@ interface ReportColumnSelectorProps {
   selected: string[];
   layoutName: string;
   allowSave: boolean;
+  requiredColumns?: string[];
   onCancel: () => void;
   onApply: (columns: string[], layoutName: string) => void;
 }
@@ -20,6 +21,7 @@ export const ReportColumnSelector: React.FC<ReportColumnSelectorProps> = ({
   selected,
   layoutName,
   allowSave,
+  requiredColumns = [],
   onCancel,
   onApply,
 }) => {
@@ -81,15 +83,19 @@ export const ReportColumnSelector: React.FC<ReportColumnSelectorProps> = ({
     setError(null);
   };
 
+  const removableChecked = rightChecked.filter((key) => !requiredColumns.includes(key));
+
   const removeChecked = () => {
-    if (rightChecked.length === 0) return;
-    setRightList((prev) => prev.filter((key) => !rightChecked.includes(key)));
+    if (removableChecked.length === 0) return;
+    setRightList((prev) => prev.filter((key) => !removableChecked.includes(key)));
     setRightChecked([]);
+    setError(null);
   };
 
   const removeAll = () => {
-    setRightList([]);
+    setRightList((prev) => prev.filter((key) => requiredColumns.includes(key)));
     setRightChecked([]);
+    setError(null);
   };
 
   const move = (direction: -1 | 1) => {
@@ -116,6 +122,15 @@ export const ReportColumnSelector: React.FC<ReportColumnSelectorProps> = ({
   const apply = () => {
     if (rightList.length === 0) {
       setError('Select at least one column before applying.');
+      return;
+    }
+    const missing = requiredColumns.filter((key) => !rightList.includes(key));
+    if (missing.length > 0) {
+      setError(
+        'Required column(s) cannot be removed: ' +
+          missing.map((key) => labelOf.get(key) ?? key).join(', ') +
+          '.'
+      );
       return;
     }
     if (allowSave && name.trim().length === 0) {
@@ -190,7 +205,7 @@ export const ReportColumnSelector: React.FC<ReportColumnSelectorProps> = ({
               <button type="button" onClick={addAllFiltered} disabled={leftColumns.length === 0} className="px-2 py-1 rounded border font-bold cursor-pointer flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed border-slate-300 bg-white text-slate-700 hover:bg-slate-100">
                 Add All
               </button>
-              <button type="button" onClick={removeChecked} disabled={rightChecked.length === 0} className="px-2 py-1 rounded border font-bold cursor-pointer flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed border-red-300 bg-red-50 text-red-700 hover:bg-red-100">
+              <button type="button" onClick={removeChecked} disabled={removableChecked.length === 0} className="px-2 py-1 rounded border font-bold cursor-pointer flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed border-red-300 bg-red-50 text-red-700 hover:bg-red-100">
                 <Trash2 className="w-3 h-3" /> Remove
               </button>
               <button type="button" onClick={removeAll} disabled={rightList.length === 0} className="px-2 py-1 rounded border font-bold cursor-pointer flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed border-red-300 bg-red-50 text-red-700 hover:bg-red-100">
@@ -216,10 +231,15 @@ export const ReportColumnSelector: React.FC<ReportColumnSelectorProps> = ({
                       type="checkbox"
                       checked={rightChecked.includes(key)}
                       onChange={() => toggleRight(key)}
+                      disabled={requiredColumns.includes(key)}
+                      title={requiredColumns.includes(key) ? 'This column is required and cannot be removed.' : undefined}
                       className="accent-[#2c5f57]"
                     />
                     <span className="w-5 text-right font-mono text-[10px] text-slate-400">{index + 1}</span>
                     <span className="text-slate-800">{labelOf.get(key) ?? key}</span>
+                    {requiredColumns.includes(key) && (
+                      <span className="ml-auto text-[9px] font-bold uppercase text-amber-700">required</span>
+                    )}
                   </label>
                 ))
               )}

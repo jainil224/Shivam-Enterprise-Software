@@ -22,6 +22,14 @@ import {
   BankVoucherPayload,
   BankVoucherType,
   PaymentMode,
+  AreaRecord,
+  BrokerRecord,
+  ItemGroupRecord,
+  MasterListParams,
+  PartyGroupRecord,
+  PurchaseBookRecord,
+  SalespersonRecord,
+  TransporterRecord,
 } from '../types';
 
 import type {
@@ -46,6 +54,7 @@ import type {
   ReportOptionsResponse,
   ReportRunRequest,
   ReportRunResponse,
+  ReportSavedLayout,
 } from '../types/reports';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -1043,6 +1052,10 @@ export interface DebitNote {
   tdsSection?: string | null;
   tdsAccount?: string | null;
   remark?: string | null;
+  brokerId?: string | null;
+  transporterId?: string | null;
+  salespersonId?: string | null;
+  vehicleNumber?: string | null;
   basicAmount: string | number;
   taxableValue: string | number;
   cgstRate: string | number;
@@ -1103,6 +1116,10 @@ export interface CreateDebitNotePayload {
   tdsSection?: string | null;
   tdsAccount?: string | null;
   remark?: string | null;
+  brokerId?: string | null;
+  transporterId?: string | null;
+  salespersonId?: string | null;
+  vehicleNumber?: string | null;
   billLines: Array<{
     billNo: string;
     billDate: string;
@@ -1297,5 +1314,233 @@ export const getReportBillBaseItemDetails = async (
   const response = await apiClient.get<ApiResponse<ReportItemDetailsResponse>>('/reports/bill-base/item-details', {
     params: { sourceType, sourceId },
   });
+  return response.data.data;
+};
+
+export const exportReportBillBasePdf = async (
+  payload: ReportRunRequest
+): Promise<{ blob: Blob; filename: string }> => {
+  const response = await apiClient.post('/reports/bill-base/export/pdf', payload, {
+    responseType: 'blob',
+    timeout: 180000,
+  });
+  const disposition = String(response.headers['content-disposition'] ?? '');
+  const match = /filename="?([^";]+)"?/.exec(disposition);
+  return { blob: response.data as Blob, filename: match ? match[1] : 'bill-base-report.pdf' };
+};
+
+// -------------------------------------------------------------
+// Phase 15.1 - persistent column layouts (company scoped)
+// -------------------------------------------------------------
+export const getReportColumnLayouts = async (reportType = 'BILL_BASE'): Promise<ReportSavedLayout[]> => {
+  const response = await apiClient.get<ApiResponse<ReportSavedLayout[]>>('/reports/column-layouts', {
+    params: { reportType },
+  });
+  return response.data.data;
+};
+
+export const createReportColumnLayout = async (payload: {
+  name: string;
+  columns: string[];
+  reportType?: string;
+  isDefault?: boolean;
+}): Promise<ReportSavedLayout> => {
+  const response = await apiClient.post<ApiResponse<ReportSavedLayout>>('/reports/column-layouts', payload);
+  return response.data.data;
+};
+
+export const updateReportColumnLayout = async (
+  id: string,
+  payload: { name?: string; columns?: string[]; reportType?: string; isDefault?: boolean }
+): Promise<ReportSavedLayout> => {
+  const response = await apiClient.put<ApiResponse<ReportSavedLayout>>('/reports/column-layouts/' + id, payload);
+  return response.data.data;
+};
+
+export const deleteReportColumnLayout = async (id: string, reportType = 'BILL_BASE'): Promise<void> => {
+  await apiClient.delete('/reports/column-layouts/' + id, { params: { reportType } });
+};
+
+export const setDefaultReportColumnLayout = async (
+  id: string,
+  reportType = 'BILL_BASE'
+): Promise<ReportSavedLayout> => {
+  const response = await apiClient.post<ApiResponse<ReportSavedLayout>>(
+    '/reports/column-layouts/' + id + '/default',
+    {},
+    { params: { reportType } }
+  );
+  return response.data.data;
+};
+
+// =============================================================
+// Phase 15.2 - report master data (company scoped)
+// =============================================================
+
+export const getPartyGroups = async (params?: MasterListParams): Promise<PartyGroupRecord[]> => {
+  const response = await apiClient.get<ApiResponse<PartyGroupRecord[]>>('/masters/party-groups', { params });
+  return response.data.data;
+};
+
+export const createPartyGroup = async (data: Partial<PartyGroupRecord>): Promise<PartyGroupRecord> => {
+  const response = await apiClient.post<ApiResponse<PartyGroupRecord>>('/masters/party-groups', data);
+  return response.data.data;
+};
+
+export const updatePartyGroup = async (
+  id: string,
+  data: Partial<PartyGroupRecord>
+): Promise<PartyGroupRecord> => {
+  const response = await apiClient.patch<ApiResponse<PartyGroupRecord>>('/masters/party-groups/' + id, data);
+  return response.data.data;
+};
+
+export const setPartyGroupStatus = async (id: string, isActive: boolean): Promise<PartyGroupRecord> => {
+  const response = await apiClient.patch<ApiResponse<PartyGroupRecord>>('/masters/party-groups/' + id + '/status', {
+    isActive,
+  });
+  return response.data.data;
+};
+
+export const getAreas = async (params?: MasterListParams): Promise<AreaRecord[]> => {
+  const response = await apiClient.get<ApiResponse<AreaRecord[]>>('/masters/areas', { params });
+  return response.data.data;
+};
+
+export const createArea = async (data: Partial<AreaRecord>): Promise<AreaRecord> => {
+  const response = await apiClient.post<ApiResponse<AreaRecord>>('/masters/areas', data);
+  return response.data.data;
+};
+
+export const updateArea = async (id: string, data: Partial<AreaRecord>): Promise<AreaRecord> => {
+  const response = await apiClient.patch<ApiResponse<AreaRecord>>('/masters/areas/' + id, data);
+  return response.data.data;
+};
+
+export const setAreaStatus = async (id: string, isActive: boolean): Promise<AreaRecord> => {
+  const response = await apiClient.patch<ApiResponse<AreaRecord>>('/masters/areas/' + id + '/status', { isActive });
+  return response.data.data;
+};
+
+export const getBrokers = async (params?: MasterListParams): Promise<BrokerRecord[]> => {
+  const response = await apiClient.get<ApiResponse<BrokerRecord[]>>('/masters/brokers', { params });
+  return response.data.data;
+};
+
+export const createBroker = async (data: Partial<BrokerRecord>): Promise<BrokerRecord> => {
+  const response = await apiClient.post<ApiResponse<BrokerRecord>>('/masters/brokers', data);
+  return response.data.data;
+};
+
+export const updateBroker = async (id: string, data: Partial<BrokerRecord>): Promise<BrokerRecord> => {
+  const response = await apiClient.patch<ApiResponse<BrokerRecord>>('/masters/brokers/' + id, data);
+  return response.data.data;
+};
+
+export const setBrokerStatus = async (id: string, isActive: boolean): Promise<BrokerRecord> => {
+  const response = await apiClient.patch<ApiResponse<BrokerRecord>>('/masters/brokers/' + id + '/status', { isActive });
+  return response.data.data;
+};
+
+export const getTransporters = async (params?: MasterListParams): Promise<TransporterRecord[]> => {
+  const response = await apiClient.get<ApiResponse<TransporterRecord[]>>('/masters/transporters', { params });
+  return response.data.data;
+};
+
+export const createTransporter = async (data: Partial<TransporterRecord>): Promise<TransporterRecord> => {
+  const response = await apiClient.post<ApiResponse<TransporterRecord>>('/masters/transporters', data);
+  return response.data.data;
+};
+
+export const updateTransporter = async (
+  id: string,
+  data: Partial<TransporterRecord>
+): Promise<TransporterRecord> => {
+  const response = await apiClient.patch<ApiResponse<TransporterRecord>>('/masters/transporters/' + id, data);
+  return response.data.data;
+};
+
+export const setTransporterStatus = async (id: string, isActive: boolean): Promise<TransporterRecord> => {
+  const response = await apiClient.patch<ApiResponse<TransporterRecord>>(
+    '/masters/transporters/' + id + '/status',
+    { isActive }
+  );
+  return response.data.data;
+};
+
+export const getSalespersons = async (params?: MasterListParams): Promise<SalespersonRecord[]> => {
+  const response = await apiClient.get<ApiResponse<SalespersonRecord[]>>('/masters/salespersons', { params });
+  return response.data.data;
+};
+
+export const createSalesperson = async (data: Partial<SalespersonRecord>): Promise<SalespersonRecord> => {
+  const response = await apiClient.post<ApiResponse<SalespersonRecord>>('/masters/salespersons', data);
+  return response.data.data;
+};
+
+export const updateSalesperson = async (
+  id: string,
+  data: Partial<SalespersonRecord>
+): Promise<SalespersonRecord> => {
+  const response = await apiClient.patch<ApiResponse<SalespersonRecord>>('/masters/salespersons/' + id, data);
+  return response.data.data;
+};
+
+export const setSalespersonStatus = async (id: string, isActive: boolean): Promise<SalespersonRecord> => {
+  const response = await apiClient.patch<ApiResponse<SalespersonRecord>>(
+    '/masters/salespersons/' + id + '/status',
+    { isActive }
+  );
+  return response.data.data;
+};
+
+export const getItemGroups = async (params?: MasterListParams): Promise<ItemGroupRecord[]> => {
+  const response = await apiClient.get<ApiResponse<ItemGroupRecord[]>>('/masters/item-groups', { params });
+  return response.data.data;
+};
+
+export const createItemGroup = async (data: Partial<ItemGroupRecord>): Promise<ItemGroupRecord> => {
+  const response = await apiClient.post<ApiResponse<ItemGroupRecord>>('/masters/item-groups', data);
+  return response.data.data;
+};
+
+export const updateItemGroup = async (id: string, data: Partial<ItemGroupRecord>): Promise<ItemGroupRecord> => {
+  const response = await apiClient.patch<ApiResponse<ItemGroupRecord>>('/masters/item-groups/' + id, data);
+  return response.data.data;
+};
+
+export const setItemGroupStatus = async (id: string, isActive: boolean): Promise<ItemGroupRecord> => {
+  const response = await apiClient.patch<ApiResponse<ItemGroupRecord>>('/masters/item-groups/' + id + '/status', {
+    isActive,
+  });
+  return response.data.data;
+};
+
+export const getPurchaseBooks = async (params?: {
+  financialYearId?: string;
+  includeInactive?: boolean;
+}): Promise<PurchaseBookRecord[]> => {
+  const response = await apiClient.get<ApiResponse<PurchaseBookRecord[]>>('/masters/purchase-books', { params });
+  return response.data.data;
+};
+
+export const createPurchaseBook = async (data: Partial<PurchaseBookRecord>): Promise<PurchaseBookRecord> => {
+  const response = await apiClient.post<ApiResponse<PurchaseBookRecord>>('/masters/purchase-books', data);
+  return response.data.data;
+};
+
+export const updatePurchaseBook = async (
+  id: string,
+  data: Partial<PurchaseBookRecord>
+): Promise<PurchaseBookRecord> => {
+  const response = await apiClient.patch<ApiResponse<PurchaseBookRecord>>('/masters/purchase-books/' + id, data);
+  return response.data.data;
+};
+
+export const setPurchaseBookStatus = async (id: string, isActive: boolean): Promise<PurchaseBookRecord> => {
+  const response = await apiClient.patch<ApiResponse<PurchaseBookRecord>>(
+    '/masters/purchase-books/' + id + '/status',
+    { isActive }
+  );
   return response.data.data;
 };

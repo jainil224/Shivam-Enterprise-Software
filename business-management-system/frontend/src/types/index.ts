@@ -83,11 +83,82 @@ export interface Party {
   pincode?: string | null;
   phone?: string | null;
   email?: string | null;
+  partyGroupId?: string | null;
+  areaId?: string | null;
   openingBalance: string | number;
   balanceType: BalanceType;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+// -------------------------------------------------------------
+// Phase 15.2 - report master data (company scoped)
+// -------------------------------------------------------------
+
+export interface PartyGroupRecord {
+  id: string;
+  companyId: string;
+  groupName: string;
+  description: string | null;
+  isActive: boolean;
+}
+
+export interface AreaRecord {
+  id: string;
+  companyId: string;
+  areaName: string;
+  description: string | null;
+  isActive: boolean;
+}
+
+export interface BrokerRecord {
+  id: string;
+  companyId: string;
+  brokerCode: string;
+  brokerName: string;
+  phone: string | null;
+  isActive: boolean;
+}
+
+export interface TransporterRecord {
+  id: string;
+  companyId: string;
+  transporterCode: string;
+  transporterName: string;
+  phone: string | null;
+  isActive: boolean;
+}
+
+export interface SalespersonRecord {
+  id: string;
+  companyId: string;
+  salespersonCode: string;
+  salespersonName: string;
+  phone: string | null;
+  isActive: boolean;
+}
+
+export interface ItemGroupRecord {
+  id: string;
+  companyId: string;
+  groupName: string;
+  description: string | null;
+  isActive: boolean;
+}
+
+export interface PurchaseBookRecord {
+  id: string;
+  companyId: string;
+  financialYearId: string;
+  prefix: string;
+  bookName: string;
+  isActive: boolean;
+}
+
+export interface MasterListParams {
+  search?: string;
+  includeInactive?: boolean;
 }
 
 export interface Machine {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { TopNavigationBar } from '../components/TopNavigationBar';
 import { useUIModals } from '../context/UIModalContext';
 
@@ -9,6 +9,7 @@ interface RootLayoutProps {
 
 export const RootLayout: React.FC<RootLayoutProps> = ({ children }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const {
     openComingSoon,
     openFySwitcher,
@@ -19,6 +20,12 @@ export const RootLayout: React.FC<RootLayoutProps> = ({ children }) => {
 
   // Navigation menu state
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+
+  // Report windows own the whole viewport so their sticky action bars and A4
+  // sheets are never pushed below the fold by the app chrome.
+  const fullHeightRoute =
+    location.pathname === '/reports/sales-purchase/bill-base' ||
+    location.pathname === '/reports/sales-purchase/bill-base/print';
 
   // -------------------------------------------------------------
   // Keyboard Navigation: F1, Alt+C, Alt+M, Alt+T, Alt+R, Alt+F, Esc
@@ -77,7 +84,12 @@ export const RootLayout: React.FC<RootLayoutProps> = ({ children }) => {
   }, [navigate, activeMenu]);
 
   return (
-    <div className="min-h-screen bg-[#dce8e1] flex flex-col text-slate-800 overflow-x-hidden w-full">
+    <div
+      className={
+        (fullHeightRoute ? 'h-screen overflow-hidden' : 'min-h-screen overflow-x-hidden') +
+        ' bg-[#dce8e1] flex flex-col text-slate-800 w-full'
+      }
+    >
       {/* Top ERP Navigation Bar */}
       <TopNavigationBar
         activeMenu={activeMenu}
@@ -90,24 +102,32 @@ export const RootLayout: React.FC<RootLayoutProps> = ({ children }) => {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 w-full min-w-0 px-3 sm:px-4 lg:px-5 py-3">
+      <main
+        className={
+          fullHeightRoute
+            ? 'flex-1 w-full min-w-0 min-h-0 overflow-hidden p-2 flex flex-col'
+            : 'flex-1 w-full min-w-0 px-3 sm:px-4 lg:px-5 py-3'
+        }
+      >
         {children}
       </main>
 
       {/* System Footer */}
-      <footer className="bg-[#eaf2ef] border-t border-[#789d93] py-2 text-xs text-slate-500">
-        <div className="w-full px-3 sm:px-4 lg:px-5 flex flex-col sm:flex-row flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center">
-          <div className="flex items-center space-x-2 text-[11px] text-slate-400">
-            <span>BMS v1.0</span>
-            <span className="text-slate-300">•</span>
-            <span>PostgreSQL 18</span>
-            <span className="text-slate-300">•</span>
-            <span>Local Database Architecture</span>
+      {!fullHeightRoute && (
+        <footer className="bg-[#eaf2ef] border-t border-[#789d93] py-2 text-xs text-slate-500">
+          <div className="w-full px-3 sm:px-4 lg:px-5 flex flex-col sm:flex-row flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center">
+            <div className="flex items-center space-x-2 text-[11px] text-slate-400">
+              <span>BMS v1.0</span>
+              <span className="text-slate-300">•</span>
+              <span>PostgreSQL 18</span>
+              <span className="text-slate-300">•</span>
+              <span>Local Database Architecture</span>
+            </div>
+            <span aria-hidden="true" className="hidden sm:inline text-slate-300">|</span>
+            <span className="text-[11px] font-semibold text-slate-600">Made by Jainil Patel V.</span>
           </div>
-          <span aria-hidden="true" className="hidden sm:inline text-slate-300">|</span>
-          <span className="text-[11px] font-semibold text-slate-600">Made by Jainil Patel V.</span>
-        </div>
-      </footer>
+        </footer>
+      )}
     </div>
   );
 };

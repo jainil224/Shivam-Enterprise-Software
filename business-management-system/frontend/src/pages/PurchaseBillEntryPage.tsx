@@ -23,9 +23,27 @@ import {
   createPurchaseBill,
   getProductionReceiveById,
   getPurchaseBillByChallanId,
+  getPurchaseBooks,
+  getBrokers,
+  getTransporters,
+  getSalespersons,
+  getParties,
+  getItems,
+  getYarnQualities,
+  getYarnGrades,
   GSTINVerificationResult,
   GSTINProviderStatus,
 } from '../services/api';
+import type {
+  BrokerRecord,
+  Party,
+  PurchaseBookRecord,
+  SalespersonRecord,
+  TransporterRecord,
+  YarnGrade,
+  YarnQuality,
+} from '../types';
+import type { Item } from '../types/orders';
 
 const GST_RATES = [0, 5, 12, 18, 28];
 
@@ -35,7 +53,7 @@ export const PurchaseBillEntryPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const effectiveChallanId = challanId || searchParams.get('challanId') || null;
 
-  const { activeCompany } = useCompany();
+  const { activeCompany, activeFinancialYear } = useCompany();
 
   // Loading & State
   const [, setLoadingChallan] = useState(false);
@@ -80,6 +98,27 @@ export const PurchaseBillEntryPage: React.FC = () => {
   const [gstRate, setGstRate] = useState<number>(5);
   const [remarks, setRemarks] = useState('');
 
+  // Phase 15.2 - report master references (all optional, never auto-filled)
+  const [bookId, setBookId] = useState('');
+  const [brokerId, setBrokerId] = useState('');
+  const [transporterId, setTransporterId] = useState('');
+  const [salespersonId, setSalespersonId] = useState('');
+  const [deliveryPartyId, setDeliveryPartyId] = useState('');
+  const [vehicleNumber, setVehicleNumber] = useState('');
+  const [lineItemId, setLineItemId] = useState('');
+  const [lineYarnQualityId, setLineYarnQualityId] = useState('');
+  const [lineYarnGradeId, setLineYarnGradeId] = useState('');
+
+  const [books, setBooks] = useState<PurchaseBookRecord[]>([]);
+  const [brokers, setBrokers] = useState<BrokerRecord[]>([]);
+  const [transporters, setTransporters] = useState<TransporterRecord[]>([]);
+  const [salespersons, setSalespersons] = useState<SalespersonRecord[]>([]);
+  const [deliveryParties, setDeliveryParties] = useState<Party[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
+  const [yarnQualities, setYarnQualities] = useState<YarnQuality[]>([]);
+  const [yarnGrades, setYarnGrades] = useState<YarnGrade[]>([]);
+  const [mastersError, setMastersError] = useState<string | null>(null);
+
   // UI Status
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -91,6 +130,51 @@ export const PurchaseBillEntryPage: React.FC = () => {
       .then((st) => setProviderStatus(st))
       .catch(() => {});
   }, []);
+
+  // Phase 15.2 - load the report master lists once the company / FY is known.
+  useEffect(() => {
+    if (!activeCompany) return;
+    let cancelled = false;
+    const failures: string[] = [];
+    const settle = <T,>(promise: Promise<T[]>, apply: (rows: T[]) => void, label: string) =>
+      promise
+        .then((rows) => {
+          if (!cancelled) apply(rows);
+        })
+        .catch(() => {
+          failures.push(label);
+          if (!cancelled) apply([]);
+        });
+
+    const jobs: Array<Promise<void>> = [
+      settle(getBrokers(), setBrokers, 'brokers'),
+      settle(getTransporters(), setTransporters, 'transporters'),
+      settle(getSalespersons(), setSalespersons, 'salespersons'),
+      settle(getParties(), setDeliveryParties, 'parties'),
+      settle(getItems(), setItems, 'items'),
+      settle(getYarnQualities(), setYarnQualities, 'yarn qualities'),
+      settle(getYarnGrades(), setYarnGrades, 'yarn grades'),
+      settle(
+        getPurchaseBooks({ financialYearId: activeFinancialYear?.id }),
+        setBooks,
+        'purchase books'
+      ),
+    ];
+
+    Promise.all(jobs).then(() => {
+      if (!cancelled) {
+        setMastersError(
+          failures.length > 0
+            ? 'Could not load: ' + failures.join(', ') + '. The bill can still be saved without them.'
+            : null
+        );
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCompany, activeFinancialYear]);
 
   // Load Source Challan if ID present
   const loadSourceChallan = useCallback(async (id: string) => {
@@ -114,6 +198,10 @@ export const PurchaseBillEntryPage: React.FC = () => {
         0
       );
       setQuantity(Math.round(totalNetWeight * 1000) / 1000);
+
+      // Carry the challan's yarn quality / grade into the bill line references.
+      if (challan.yarnQualityId) setLineYarnQualityId(challan.yarnQualityId);
+      if (challan.yarnGradeId) setLineYarnGradeId(challan.yarnGradeId);
 
       // Description from quality
       if (challan.yarnQuality?.qualityName) {
@@ -314,6 +402,9 @@ export const PurchaseBillEntryPage: React.FC = () => {
               lotNumber: carton.lotNumber || sourceChallan.lotNumber,
               grade: carton.grade || sourceChallan.yarnGrade?.gradeName,
               cops: carton.cops,
+              itemId: lineItemId || null,
+              yarnQualityId: lineYarnQualityId || null,
+              yarnGradeId: lineYarnGradeId || null,
             };
           })
         : [
@@ -328,6 +419,9 @@ export const PurchaseBillEntryPage: React.FC = () => {
               lotNumber: sourceChallan?.lotNumber || null,
               grade: sourceChallan?.yarnGrade?.gradeName || null,
               cops: null,
+              itemId: lineItemId || null,
+              yarnQualityId: lineYarnQualityId || null,
+              yarnGradeId: lineYarnGradeId || null,
             },
           ];
 
@@ -351,6 +445,12 @@ export const PurchaseBillEntryPage: React.FC = () => {
         placeOfSupply: placeOfSupply || supplierState || 'Gujarat',
         gstRate,
         remarks: remarks.trim() || null,
+        bookId: bookId || null,
+        brokerId: brokerId || null,
+        transporterId: transporterId || null,
+        salespersonId: salespersonId || null,
+        deliveryPartyId: deliveryPartyId || null,
+        vehicleNumber: vehicleNumber.trim().toUpperCase() || null,
         items: itemsPayload,
       };
 
@@ -884,6 +984,183 @@ export const PurchaseBillEntryPage: React.FC = () => {
                 placeholder="Gujarat"
                 className="w-full bg-white border border-[#789d93] rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#2c5f57]"
               />
+            </div>
+          </div>
+
+          {/* Report Master References (Phase 15.2) - all optional */}
+          <div className="border border-[#789d93] rounded bg-[#f6faf8] p-2.5 mt-1">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Building className="w-3.5 h-3.5 text-[#2c5f57]" />
+              <span className="font-bold text-[11px] text-slate-800 uppercase tracking-wide">
+                Report Master References
+              </span>
+              <span className="text-[10px] text-slate-500 normal-case tracking-normal">
+                Optional - used for Book / Broker / Transporter / Salesperson / Party Group wise reports
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-0.5">Purchase Book :</label>
+                <select
+                  value={bookId}
+                  onChange={(e) => setBookId(e.target.value)}
+                  className="w-full bg-white border border-[#789d93] rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#2c5f57]"
+                >
+                  <option value="">Unassigned</option>
+                  {books.map((book) => (
+                    <option key={book.id} value={book.id}>
+                      {book.bookName + ' (' + book.prefix + ')'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-0.5">Broker :</label>
+                <select
+                  value={brokerId}
+                  onChange={(e) => setBrokerId(e.target.value)}
+                  className="w-full bg-white border border-[#789d93] rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#2c5f57]"
+                >
+                  <option value="">Unassigned</option>
+                  {brokers.map((broker) => (
+                    <option key={broker.id} value={broker.id}>
+                      {broker.brokerCode + ' - ' + broker.brokerName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-0.5">Transporter :</label>
+                <select
+                  value={transporterId}
+                  onChange={(e) => setTransporterId(e.target.value)}
+                  className="w-full bg-white border border-[#789d93] rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#2c5f57]"
+                >
+                  <option value="">Unassigned</option>
+                  {transporters.map((transporter) => (
+                    <option key={transporter.id} value={transporter.id}>
+                      {transporter.transporterCode + ' - ' + transporter.transporterName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-0.5">Sales Person :</label>
+                <select
+                  value={salespersonId}
+                  onChange={(e) => setSalespersonId(e.target.value)}
+                  className="w-full bg-white border border-[#789d93] rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#2c5f57]"
+                >
+                  <option value="">Unassigned</option>
+                  {salespersons.map((person) => (
+                    <option key={person.id} value={person.id}>
+                      {person.salespersonCode + ' - ' + person.salespersonName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-0.5">Delivery Party :</label>
+                <select
+                  value={deliveryPartyId}
+                  onChange={(e) => setDeliveryPartyId(e.target.value)}
+                  className="w-full bg-white border border-[#789d93] rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#2c5f57]"
+                >
+                  <option value="">Same as supplier</option>
+                  {deliveryParties.map((party) => (
+                    <option key={party.id} value={party.id}>
+                      {party.partyName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-0.5">Vehicle No :</label>
+                <input
+                  type="text"
+                  value={vehicleNumber}
+                  onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())}
+                  placeholder="GJ-05-AB-1234"
+                  maxLength={20}
+                  className="w-full bg-white border border-[#789d93] rounded px-2 py-1 text-xs font-mono uppercase focus:outline-none focus:ring-1 focus:ring-[#2c5f57]"
+                />
+              </div>
+            </div>
+            {mastersError && (
+              <p className="mt-1.5 text-[10.5px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                {mastersError}
+              </p>
+            )}
+          </div>
+
+          {/* Item Line Master References (Phase 15.2) - applied to every line on this bill */}
+          <div className="border border-[#789d93] rounded bg-white p-2.5 mt-1">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Package className="w-3.5 h-3.5 text-[#2c5f57]" />
+              <span className="font-bold text-[11px] text-slate-800 uppercase tracking-wide">
+                Item Line Master References
+              </span>
+              <span className="text-[10px] text-slate-500 normal-case tracking-normal">
+                Optional - links each line to the Item / Yarn Quality / Yarn Grade masters
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-0.5">Item :</label>
+                <select
+                  value={lineItemId}
+                  onChange={(e) => setLineItemId(e.target.value)}
+                  className="w-full bg-white border border-[#789d93] rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#2c5f57]"
+                >
+                  <option value="">Not linked</option>
+                  {items.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.itemCode + ' - ' + item.itemName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-0.5">Yarn Quality :</label>
+                <select
+                  value={lineYarnQualityId}
+                  onChange={(e) => {
+                    setLineYarnQualityId(e.target.value);
+                    const match = yarnQualities.find((entry) => entry.id === e.target.value);
+                    if (match?.qualityName) setItemDescription(match.qualityName);
+                  }}
+                  className="w-full bg-white border border-[#789d93] rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#2c5f57]"
+                >
+                  <option value="">Not linked</option>
+                  {yarnQualities.map((quality) => (
+                    <option key={quality.id} value={quality.id}>
+                      {quality.qualityName + (quality.denier ? ' (' + quality.denier + ')' : '')}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-0.5">Yarn Grade :</label>
+                <select
+                  value={lineYarnGradeId}
+                  onChange={(e) => setLineYarnGradeId(e.target.value)}
+                  className="w-full bg-white border border-[#789d93] rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#2c5f57]"
+                >
+                  <option value="">Not linked</option>
+                  {yarnGrades.map((grade) => (
+                    <option key={grade.id} value={grade.id}>
+                      {grade.gradeName}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 

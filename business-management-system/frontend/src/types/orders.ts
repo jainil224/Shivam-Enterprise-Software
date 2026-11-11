@@ -95,6 +95,8 @@ export interface Item {
   defaultPurchaseRate: string;
   barcode: string | null;
   description: string | null;
+  itemGroupId: string | null;
+  itemGroupName: string | null;
   yarnQualityId: string | null;
   yarnQualityName: string | null;
   yarnGradeId: string | null;
@@ -123,6 +125,7 @@ export interface ItemPayload {
   defaultPurchaseRate?: string | number | null;
   barcode?: string | null;
   description?: string | null;
+  itemGroupId?: string | null;
   yarnQualityId?: string | null;
   yarnGradeId?: string | null;
   yarnCount?: string | null;
@@ -140,6 +143,7 @@ export interface ItemLookups {
   gstRates: string[];
   yarnQualities: Array<{ id: string; qualityName: string; denier: string | null }>;
   yarnGrades: Array<{ id: string; gradeName: string }>;
+  itemGroups: Array<{ id: string; groupName: string }>;
 }
 
 // -------------------------------------------------------------
@@ -172,6 +176,8 @@ export interface OrderItemLookup {
   defaultSalesRate: string;
   defaultPurchaseRate: string;
   description: string | null;
+  itemGroupId: string | null;
+  itemGroupName: string | null;
   yarnQualityId: string | null;
   yarnQualityName: string | null;
   yarnGradeId: string | null;

@@ -13,11 +13,19 @@ import {
   getDebitNotePartyBalance,
   getParties,
   getLedgerAccounts,
+  getBrokers,
+  getTransporters,
+  getSalespersons,
   DebitNoteBook,
   DebitNote,
   DebitNoteBillLine,
   CreateDebitNotePayload,
 } from '../services/api';
+import type {
+  BrokerRecord,
+  SalespersonRecord,
+  TransporterRecord,
+} from '../types';
 import {
   Save,
   Printer,
@@ -163,6 +171,49 @@ export const DebitNoteEntryPage: React.FC = () => {
   const [tdsAccount, setTdsAccount] = useState('TDS RECEIVABLE');
   const [remark, setRemark] = useState('');
 
+  // Phase 15.2 - report master references (all optional)
+  const [brokerId, setBrokerId] = useState('');
+  const [transporterId, setTransporterId] = useState('');
+  const [salespersonId, setSalespersonId] = useState('');
+  const [vehicleNumber, setVehicleNumber] = useState('');
+  const [brokers, setBrokers] = useState<BrokerRecord[]>([]);
+  const [transporters, setTransporters] = useState<TransporterRecord[]>([]);
+  const [salespersons, setSalespersons] = useState<SalespersonRecord[]>([]);
+  const [mastersError, setMastersError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!activeCompany) return;
+    let cancelled = false;
+    const failures: string[] = [];
+    const settle = <T,>(promise: Promise<T[]>, apply: (rows: T[]) => void, label: string) =>
+      promise
+        .then((rows) => {
+          if (!cancelled) apply(rows);
+        })
+        .catch(() => {
+          failures.push(label);
+          if (!cancelled) apply([]);
+        });
+
+    Promise.all([
+      settle(getBrokers(), setBrokers, 'brokers'),
+      settle(getTransporters(), setTransporters, 'transporters'),
+      settle(getSalespersons(), setSalespersons, 'salespersons'),
+    ]).then(() => {
+      if (!cancelled) {
+        setMastersError(
+          failures.length > 0
+            ? 'Could not load: ' + failures.join(', ') + '. The note can still be saved without them.'
+            : null
+        );
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCompany]);
+
   const [showPartyModal, setShowPartyModal] = useState(false);
   const [partySearchTerm, setPartySearchTerm] = useState('');
   const [showBillModal, setShowBillModal] = useState(false);
@@ -234,6 +285,10 @@ export const DebitNoteEntryPage: React.FC = () => {
       setTdsSection(note.tdsSection || '');
       setTdsAccount(note.tdsAccount || 'TDS RECEIVABLE');
       setRemark(note.remark || '');
+      setBrokerId(note.brokerId || '');
+      setTransporterId(note.transporterId || '');
+      setSalespersonId(note.salespersonId || '');
+      setVehicleNumber(note.vehicleNumber || '');
       setGridRows(note.billLines || []);
 
       getDebitNoteNavigation(noteId).then((nav) => setNavIds(nav)).catch(() => {});
@@ -777,6 +832,10 @@ export const DebitNoteEntryPage: React.FC = () => {
         tdsSection: tdsSection.trim() || null,
         tdsAccount: tdsAccount.trim() || null,
         remark: remark.trim() || null,
+        brokerId: brokerId || null,
+        transporterId: transporterId || null,
+        salespersonId: salespersonId || null,
+        vehicleNumber: vehicleNumber.trim().toUpperCase() || null,
         billLines: validRows.map((row) => ({
           billNo: row.billNo,
           billDate: row.billDate,
@@ -1064,6 +1123,77 @@ export const DebitNoteEntryPage: React.FC = () => {
                 className="w-20 bg-white border border-[#789d93] rounded px-2 py-0.5 text-xs font-mono text-center focus:ring-1 focus:ring-[#2c5f57]"
               />
             </div>
+
+            {/* Phase 15.2 - report master references */}
+            <div className="flex items-center gap-2">
+              <label className="w-32 font-bold text-slate-700">Broker :</label>
+              <select
+                value={brokerId}
+                onChange={(e) => setBrokerId(e.target.value)}
+                disabled={loadedNote?.status === 'CANCELLED'}
+                className="flex-1 bg-white border border-[#789d93] rounded px-2 py-0.5 text-xs focus:ring-1 focus:ring-[#2c5f57]"
+              >
+                <option value="">Unassigned</option>
+                {brokers.map((broker) => (
+                  <option key={broker.id} value={broker.id}>
+                    {broker.brokerCode + ' - ' + broker.brokerName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label className="w-32 font-bold text-slate-700">Transporter :</label>
+              <select
+                value={transporterId}
+                onChange={(e) => setTransporterId(e.target.value)}
+                disabled={loadedNote?.status === 'CANCELLED'}
+                className="flex-1 bg-white border border-[#789d93] rounded px-2 py-0.5 text-xs focus:ring-1 focus:ring-[#2c5f57]"
+              >
+                <option value="">Unassigned</option>
+                {transporters.map((transporter) => (
+                  <option key={transporter.id} value={transporter.id}>
+                    {transporter.transporterCode + ' - ' + transporter.transporterName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label className="w-32 font-bold text-slate-700">Sales Person :</label>
+              <select
+                value={salespersonId}
+                onChange={(e) => setSalespersonId(e.target.value)}
+                disabled={loadedNote?.status === 'CANCELLED'}
+                className="flex-1 bg-white border border-[#789d93] rounded px-2 py-0.5 text-xs focus:ring-1 focus:ring-[#2c5f57]"
+              >
+                <option value="">Unassigned</option>
+                {salespersons.map((person) => (
+                  <option key={person.id} value={person.id}>
+                    {person.salespersonCode + ' - ' + person.salespersonName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label className="w-32 font-bold text-slate-700">Vehicle No :</label>
+              <input
+                type="text"
+                value={vehicleNumber}
+                onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())}
+                disabled={loadedNote?.status === 'CANCELLED'}
+                placeholder="GJ-05-AB-1234"
+                maxLength={20}
+                className="flex-1 bg-white border border-[#789d93] rounded px-2 py-0.5 text-xs font-mono uppercase focus:ring-1 focus:ring-[#2c5f57]"
+              />
+            </div>
+
+            {mastersError && (
+              <p className="text-[10.5px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                {mastersError}
+              </p>
+            )}
           </div>
 
           {/* Right Column */}

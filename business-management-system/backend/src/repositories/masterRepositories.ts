@@ -50,6 +50,8 @@ export class PartyRepository {
     partyCode: string;
     partyName: string;
     partyType?: PartyType;
+    partyGroupId?: string | null;
+    areaId?: string | null;
     gstin?: string | null;
     panNumber?: string | null;
     address?: string | null;
@@ -68,6 +70,8 @@ export class PartyRepository {
         partyCode: data.partyCode.trim().toUpperCase(),
         partyName: data.partyName.trim(),
         partyType: data.partyType || 'CUSTOMER',
+        partyGroupId: data.partyGroupId || null,
+        areaId: data.areaId || null,
         gstin: data.gstin ? data.gstin.trim().toUpperCase() : null,
         panNumber: data.panNumber ? data.panNumber.trim().toUpperCase() : null,
         address: data.address?.trim() || null,
@@ -87,6 +91,8 @@ export class PartyRepository {
     partyCode?: string;
     partyName?: string;
     partyType?: PartyType;
+    partyGroupId?: string | null;
+    areaId?: string | null;
     gstin?: string | null;
     panNumber?: string | null;
     address?: string | null;
@@ -103,6 +109,8 @@ export class PartyRepository {
     if (data.partyCode !== undefined) updateData.partyCode = data.partyCode.trim().toUpperCase();
     if (data.partyName !== undefined) updateData.partyName = data.partyName.trim();
     if (data.partyType !== undefined) updateData.partyType = data.partyType;
+    if (data.partyGroupId !== undefined) updateData.partyGroupId = data.partyGroupId || null;
+    if (data.areaId !== undefined) updateData.areaId = data.areaId || null;
     if (data.gstin !== undefined) updateData.gstin = data.gstin ? data.gstin.trim().toUpperCase() : null;
     if (data.panNumber !== undefined) updateData.panNumber = data.panNumber ? data.panNumber.trim().toUpperCase() : null;
     if (data.address !== undefined) updateData.address = data.address ? data.address.trim() : null;

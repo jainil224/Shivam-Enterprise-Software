@@ -56,6 +56,10 @@ export interface DebitNoteHeaderData {
   partyNoteNo?: string | null;
   noteType: 'SALES' | 'PURCHASE' | 'BOTH';
   partyId: string;
+  brokerId?: string | null;
+  transporterId?: string | null;
+  salespersonId?: string | null;
+  vehicleNumber?: string | null;
   dueDays: number;
   creditAccountId: string;
   osEffect: string;
@@ -85,6 +89,9 @@ export interface DebitNoteHeaderData {
 const NOTE_INCLUDE = {
   book: true,
   party: true,
+  broker: true,
+  transporter: true,
+  salesperson: true,
   creditAccount: true,
   billLines: {
     orderBy: { lineNumber: 'asc' as const },

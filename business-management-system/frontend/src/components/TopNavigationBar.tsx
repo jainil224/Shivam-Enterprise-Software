@@ -221,6 +221,7 @@ export const TopNavigationBar: React.FC<TopNavigationBarProps> = ({
                   { name: 'Yarn Quality Master (Denier/Filament)', route: '/masters/yarn-qualities', desc: 'Polyester DTY denier, luster, quality' },
                   { name: 'Yarn Grade Master (Lots / Shades)', route: '/masters/yarn-grades', desc: 'Quality grades (A, B, Fresh, Commercial)' },
                   { name: 'Production Book Master', route: '/masters/production-books', desc: 'Challan prefix registers, FY opening balances' },
+                  { name: 'Report Masters (Group/Area/Broker)', route: '/masters/report-masters', desc: 'Party groups, areas, brokers, transporters, salespersons, item groups, purchase books' },
                 ].map((item, idx) => (
                   <button
                     key={idx}

@@ -51,6 +51,14 @@ model Company {
   purchaseBills      PurchaseBill[]
   debitNoteBooks     DebitNoteBook[]
   debitNotes         DebitNote[]
+  reportColumnLayouts ReportColumnLayout[]
+  partyGroups        PartyGroup[]
+  areas              Area[]
+  brokers            Broker[]
+  transporters       Transporter[]
+  salespersons       Salesperson[]
+  itemGroups         ItemGroup[]
+  purchaseBooks      PurchaseBook[]
 
   items                Item[]
   salesOrders          SalesOrder[]
@@ -82,6 +90,7 @@ model FinancialYear {
   voucherSequences   VoucherSequence[]
   debitNoteBooks     DebitNoteBook[]
   debitNotes         DebitNote[]
+  purchaseBooks      PurchaseBook[]
 
   salesOrders          SalesOrder[]
   purchaseOrders       PurchaseOrder[]
@@ -123,15 +132,20 @@ model Party {
   email          String?
   openingBalance Decimal     @default(0.00) @map("opening_balance") @db.Decimal(15, 2)
   balanceType    BalanceType @default(DEBIT) @map("balance_type")
+  partyGroupId   String?     @map("party_group_id")
+  areaId         String?     @map("area_id")
   isActive       Boolean     @default(true) @map("is_active")
   createdAt      DateTime    @default(now()) @map("created_at")
   updatedAt      DateTime    @updatedAt @map("updated_at")
 
   company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  partyGroup         PartyGroup?         @relation(fields: [companyId, partyGroupId], references: [companyId, id], onDelete: Restrict)
+  area               Area?               @relation(fields: [companyId, areaId], references: [companyId, id], onDelete: Restrict)
   productionReceives ProductionReceive[]
   ledgerAccounts     LedgerAccount[]
   bankVouchers       BankVoucher[]
-  purchaseBills      PurchaseBill[]
+  purchaseBills      PurchaseBill[]      @relation("PurchaseBillParty")
+  deliveryPurchaseBills PurchaseBill[]   @relation("PurchaseBillDeliveryParty")
   debitNotes         DebitNote[]
   salesOrders        SalesOrder[]
   purchaseOrders     PurchaseOrder[]
@@ -141,6 +155,146 @@ model Party {
   @@index([companyId, partyType])
   @@index([companyId, partyName])
   @@map("parties")
+}
+
+// =============================================================
+// Phase 15.2 - Report master data (company scoped)
+// =============================================================
+
+model PartyGroup {
+  id          String   @id @default(uuid())
+  companyId   String   @map("company_id")
+  groupName   String   @map("group_name")
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parties Party[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, groupName])
+  @@index([companyId, isActive])
+  @@map("party_groups")
+}
+
+model Area {
+  id          String   @id @default(uuid())
+  companyId   String   @map("company_id")
+  areaName    String   @map("area_name")
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parties Party[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, areaName])
+  @@index([companyId, isActive])
+  @@map("areas")
+}
+
+model Broker {
+  id         String   @id @default(uuid())
+  companyId  String   @map("company_id")
+  brokerCode String   @map("broker_code")
+  brokerName String   @map("broker_name")
+  phone      String?
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  purchaseBills PurchaseBill[]
+  debitNotes    DebitNote[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, brokerCode])
+  @@index([companyId, isActive])
+  @@map("brokers")
+}
+
+model Transporter {
+  id              String   @id @default(uuid())
+  companyId       String   @map("company_id")
+  transporterCode String   @map("transporter_code")
+  transporterName String   @map("transporter_name")
+  phone           String?
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  purchaseBills PurchaseBill[]
+  debitNotes    DebitNote[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, transporterCode])
+  @@index([companyId, isActive])
+  @@map("transporters")
+}
+
+model Salesperson {
+  id              String   @id @default(uuid())
+  companyId       String   @map("company_id")
+  salespersonCode String   @map("salesperson_code")
+  salespersonName String   @map("salesperson_name")
+  phone           String?
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  purchaseBills PurchaseBill[]
+  debitNotes    DebitNote[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, salespersonCode])
+  @@index([companyId, isActive])
+  @@map("salespersons")
+}
+
+model ItemGroup {
+  id          String   @id @default(uuid())
+  companyId   String   @map("company_id")
+  groupName   String   @map("group_name")
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  items   Item[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, groupName])
+  @@index([companyId, isActive])
+  @@map("item_groups")
+}
+
+model PurchaseBook {
+  id              String   @id @default(uuid())
+  companyId       String   @map("company_id")
+  financialYearId String   @map("financial_year_id")
+  prefix          String
+  bookName        String   @map("book_name")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  financialYear FinancialYear @relation(fields: [companyId, financialYearId], references: [companyId, id], onDelete: Cascade)
+  purchaseBills PurchaseBill[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, financialYearId, id])
+  @@unique([companyId, financialYearId, bookName])
+  @@unique([companyId, financialYearId, prefix])
+  @@index([companyId, financialYearId, isActive])
+  @@map("purchase_books")
 }
 
 model Machine {
@@ -211,6 +365,7 @@ model YarnQuality {
   company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   productionReceives ProductionReceive[]
   items              Item[]
+  purchaseBillItems  PurchaseBillItem[]
 
   @@unique([companyId, id])
   @@unique([companyId, qualityName])
@@ -229,6 +384,7 @@ model YarnGrade {
   company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   productionReceives ProductionReceive[]
   items              Item[]
+  purchaseBillItems  PurchaseBillItem[]
 
   @@unique([companyId, id])
   @@unique([companyId, gradeName])
@@ -342,6 +498,12 @@ model PurchaseBill {
   billDate              DateTime           @map("bill_date")
   sourceChallanId       String?            @unique @map("source_challan_id")
   partyId               String?            @map("party_id")
+  bookId                String?            @map("book_id")
+  brokerId              String?            @map("broker_id")
+  transporterId         String?            @map("transporter_id")
+  salespersonId         String?            @map("salesperson_id")
+  deliveryPartyId       String?            @map("delivery_party_id")
+  vehicleNumber         String?            @map("vehicle_number")
   supplierGstin         String?            @map("supplier_gstin")
   supplierLegalName     String             @map("supplier_legal_name")
   supplierTradeName     String?            @map("supplier_trade_name")
@@ -373,7 +535,12 @@ model PurchaseBill {
 
   company              Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
   financialYear        FinancialYear      @relation(fields: [companyId, financialYearId], references: [companyId, id], onDelete: Restrict)
-  party                Party?             @relation(fields: [companyId, partyId], references: [companyId, id], onDelete: Restrict)
+  party                Party?             @relation("PurchaseBillParty", fields: [companyId, partyId], references: [companyId, id], onDelete: Restrict)
+  deliveryParty        Party?             @relation("PurchaseBillDeliveryParty", fields: [companyId, deliveryPartyId], references: [companyId, id], onDelete: Restrict)
+  book                 PurchaseBook?      @relation(fields: [companyId, financialYearId, bookId], references: [companyId, financialYearId, id], onDelete: Restrict)
+  broker               Broker?            @relation(fields: [companyId, brokerId], references: [companyId, id], onDelete: Restrict)
+  transporter          Transporter?       @relation(fields: [companyId, transporterId], references: [companyId, id], onDelete: Restrict)
+  salesperson          Salesperson?       @relation(fields: [companyId, salespersonId], references: [companyId, id], onDelete: Restrict)
   sourceChallan        ProductionReceive? @relation("ChallanToPurchaseBill", fields: [sourceChallanId], references: [id], onDelete: Restrict)
   items                PurchaseBillItem[]
   debitNoteAdjustments DebitNote[]
@@ -387,6 +554,7 @@ model PurchaseBill {
 model PurchaseBillItem {
   id              String   @id @default(uuid())
   purchaseBillId  String   @map("purchase_bill_id")
+  itemId          String?  @map("item_id")
   itemDescription String   @map("item_description")
   hsnCode         String?  @map("hsn_code")
   quantity        Decimal  @db.Decimal(12, 3)
@@ -397,11 +565,16 @@ model PurchaseBillItem {
   cartonNumber    String?  @map("carton_number")
   lotNumber       String?  @map("lot_number")
   grade           String?
+  yarnQualityId   String?  @map("yarn_quality_id")
+  yarnGradeId     String?  @map("yarn_grade_id")
   cops            Int?
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   purchaseBill   PurchaseBill    @relation(fields: [purchaseBillId], references: [id], onDelete: Cascade)
+  item           Item?           @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  yarnQuality    YarnQuality?    @relation(fields: [yarnQualityId], references: [id], onDelete: Restrict)
+  yarnGrade      YarnGrade?      @relation(fields: [yarnGradeId], references: [id], onDelete: Restrict)
   debitNoteLines DebitNoteLine[]
 
   @@index([purchaseBillId])
@@ -668,6 +841,7 @@ model Item {
   defaultPurchaseRate Decimal       @default(0.0000) @map("default_purchase_rate") @db.Decimal(15, 4)
   barcode             String?
   description         String?
+  itemGroupId         String?       @map("item_group_id")
   yarnQualityId       String?       @map("yarn_quality_id")
   yarnGradeId         String?       @map("yarn_grade_id")
   yarnCount           String?       @map("yarn_count")
@@ -682,8 +856,10 @@ model Item {
   updatedAt           DateTime      @updatedAt @map("updated_at")
 
   company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  itemGroup          ItemGroup?          @relation(fields: [companyId, itemGroupId], references: [companyId, id])
   yarnQuality        YarnQuality?        @relation(fields: [companyId, yarnQualityId], references: [companyId, id])
   yarnGrade          YarnGrade?          @relation(fields: [companyId, yarnGradeId], references: [companyId, id])
+  purchaseBillItems  PurchaseBillItem[]
   salesOrderLines    SalesOrderLine[]
   purchaseOrderLines PurchaseOrderLine[]
   debitNoteLines     DebitNoteLine[]
@@ -1061,6 +1237,10 @@ model DebitNote {
   partyNoteNo              String?                   @map("party_note_no")
   noteType                 DebitNoteType             @default(SALES) @map("note_type")
   partyId                  String                    @map("party_id")
+  brokerId                 String?                   @map("broker_id")
+  transporterId            String?                   @map("transporter_id")
+  salespersonId            String?                   @map("salesperson_id")
+  vehicleNumber            String?                   @map("vehicle_number")
   dueDays                  Int                       @default(0) @map("due_days")
   creditAccountId          String                    @map("credit_account_id")
   osEffect                 String                    @default("2.OS(+)") @map("os_effect")
@@ -1117,6 +1297,9 @@ model DebitNote {
   financialYear FinancialYear       @relation(fields: [companyId, financialYearId], references: [companyId, id], onDelete: Restrict)
   book          DebitNoteBook       @relation(fields: [bookId], references: [id], onDelete: Restrict)
   party         Party               @relation(fields: [companyId, partyId], references: [companyId, id], onDelete: Restrict)
+  broker        Broker?             @relation(fields: [companyId, brokerId], references: [companyId, id], onDelete: Restrict)
+  transporter   Transporter?        @relation(fields: [companyId, transporterId], references: [companyId, id], onDelete: Restrict)
+  salesperson   Salesperson?        @relation(fields: [companyId, salespersonId], references: [companyId, id], onDelete: Restrict)
   creditAccount LedgerAccount       @relation("DebitNoteCreditAccount", fields: [companyId, creditAccountId], references: [companyId, id], onDelete: Restrict)
   purchaseBill  PurchaseBill?       @relation(fields: [purchaseBillId], references: [id], onDelete: Restrict)
   billLines     DebitNoteBillLine[]
@@ -1211,4 +1394,29 @@ model DebitNoteLine {
   @@index([debitNoteId])
   @@index([companyId, purchaseBillItemId])
   @@map("debit_note_lines")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 15.1 - Persistent report column layouts (company scoped).
+// No user identity infrastructure exists yet, so layouts are scoped to a
+// company + report type. createdBy is an optional free-text reference.
+// ---------------------------------------------------------------------------
+
+model ReportColumnLayout {
+  id              String   @id @default(uuid())
+  companyId       String   @map("company_id")
+  reportType      String   @default("BILL_BASE") @map("report_type")
+  layoutName      String   @map("layout_name")
+  selectedColumns Json     @map("selected_columns")
+  columnOrder     Json     @map("column_order")
+  isDefault       Boolean  @default(false) @map("is_default")
+  createdBy       String?  @map("created_by")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, reportType, layoutName])
+  @@index([companyId, reportType])
+  @@map("report_column_layouts")
 }

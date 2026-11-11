@@ -7,14 +7,22 @@ import {
   ChevronRight,
   Download,
   FileSpreadsheet,
+  FileText,
   GripVertical,
   Loader2,
   Printer,
   X,
 } from 'lucide-react';
-import { exportReportBillBaseXlsx, getReportBillBaseItemDetails, runReportBillBase } from '../services/api';
+import {
+  exportReportBillBasePdf,
+  exportReportBillBaseXlsx,
+  getReportBillBaseItemDetails,
+  runReportBillBase,
+} from '../services/api';
 import type {
   ReportColumnDef,
+  ReportColumnFilter,
+  ReportFilterOperator,
   ReportGroupSummary,
   ReportItemLine,
   ReportPageState,
@@ -37,6 +45,35 @@ const FIELD_LABELS: Record<string, string> = {
   purchaseSerial: 'Purchase Serial',
   itemGroup: 'Item Group',
 };
+
+// Mirrors the backend column catalogue minus srNo, which is assigned after
+// filtering and therefore cannot be filtered on.
+const FILTERABLE_COLUMN_KEYS = new Set([
+  'billDate', 'billNo', 'partyName', 'partyGstin', 'partyCity', 'partyState', 'bookName',
+  'sourceType', 'status', 'quality', 'itemGroup', 'itemDescription', 'itemCount', 'quantity',
+  'unit', 'hsnCode', 'taxRate', 'basicRate', 'avgRate', 'netRate', 'discountAmount',
+  'taxableAmount', 'sgstAmount', 'cgstAmount', 'igstAmount', 'roundOff', 'billAmount',
+  'month', 'purchaseSerial',
+]);
+
+const OPERATOR_DEFS: Array<{
+  value: ReportFilterOperator;
+  label: string;
+  types: Array<ReportColumnDef['type']>;
+}> = [
+  { value: 'contains', label: 'Contains', types: ['text'] },
+  { value: 'equals', label: 'Equals', types: ['text', 'number', 'currency', 'date'] },
+  { value: 'notEquals', label: 'Does not equal', types: ['text', 'number', 'currency'] },
+  { value: 'gt', label: 'Greater than', types: ['number', 'currency'] },
+  { value: 'gte', label: 'Greater than or equal', types: ['number', 'currency'] },
+  { value: 'lt', label: 'Less than', types: ['number', 'currency'] },
+  { value: 'lte', label: 'Less than or equal', types: ['number', 'currency'] },
+  { value: 'between', label: 'Between', types: ['number', 'currency', 'date'] },
+  { value: 'before', label: 'Before', types: ['date'] },
+  { value: 'after', label: 'After', types: ['date'] },
+  { value: 'empty', label: 'Is empty', types: ['text', 'number', 'currency', 'date'] },
+  { value: 'notEmpty', label: 'Is not empty', types: ['text', 'number', 'currency', 'date'] },
+];
 
 const readState = (): ReportPageState | null => {
   try {
@@ -96,27 +133,62 @@ const totalFor = (totals: ReportRunResponse['totals']['all'], key: string): numb
   }
 };
 
+const groupLabelOf = (row: ReportRow, field: string): string => {
+  const value = (row.groupValues[field] ?? '').trim();
+  return value.length > 0 ? value : 'Not recorded';
+};
+
+const describeFilter = (filter: ReportColumnFilter, columns: ReportColumnDef[]): string => {
+  const column = columns.find((entry) => entry.key === filter.key);
+  const def = OPERATOR_DEFS.find((entry) => entry.value === filter.operator);
+  const label = column?.label ?? filter.key;
+  const op = (def?.label ?? filter.operator).toLowerCase();
+  if (filter.operator === 'empty' || filter.operator === 'notEmpty') return label + ' ' + op;
+  if (filter.operator === 'between') {
+    return label + ' ' + op + ' ' + String(filter.value ?? '') + ' and ' + String(filter.valueTo ?? '');
+  }
+  return label + ' ' + op + ' ' + String(filter.value ?? '');
+};
+
+const downloadBlob = (blob: Blob, filename: string): void => {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
 interface GroupNodeProps {
   node: ReportGroupSummary;
-  level: number;
+  path: Array<{ field: string; label: string }>;
+  rows: ReportRow[];
   openKeys: string[];
   onToggle: (key: string) => void;
 }
 
-const GroupNode: React.FC<GroupNodeProps> = ({ node, level, openKeys, onToggle }) => {
+const GroupNode: React.FC<GroupNodeProps> = ({ node, path, rows, openKeys, onToggle }) => {
+  const nextPath = path.concat([{ field: node.field, label: node.label }]);
   const open = openKeys.includes(node.key);
   const hasChildren = Boolean(node.children && node.children.length > 0);
+  const members = hasChildren
+    ? []
+    : rows.filter((row) => nextPath.every((entry) => groupLabelOf(row, entry.field) === entry.label));
+
   return (
     <div>
       <div
         className="flex items-center gap-1.5 px-2 py-1 border-b border-slate-100 hover:bg-emerald-50/50"
-        style={{ paddingLeft: 8 + level * 16 }}
+        style={{ paddingLeft: 8 + node.level * 16 }}
       >
         <button
           type="button"
           onClick={() => onToggle(node.key)}
-          disabled={!hasChildren}
+          disabled={!hasChildren && members.length === 0}
           className="w-4 h-4 flex items-center justify-center text-slate-500 disabled:opacity-20 cursor-pointer"
+          title={open ? 'Collapse this group' : 'Expand this group'}
         >
           {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
         </button>
@@ -124,10 +196,39 @@ const GroupNode: React.FC<GroupNodeProps> = ({ node, level, openKeys, onToggle }
         <span className="text-[10px] text-slate-500">({node.count})</span>
         <span className="ml-auto font-mono text-[11px] font-bold text-slate-800">{money(node.totals.billAmount)}</span>
       </div>
-      {open &&
+      {open && hasChildren &&
         node.children?.map((child) => (
-          <GroupNode key={child.key} node={child} level={level + 1} openKeys={openKeys} onToggle={onToggle} />
+          <GroupNode key={child.key} node={child} path={nextPath} rows={rows} openKeys={openKeys} onToggle={onToggle} />
         ))}
+      {open && !hasChildren && (
+        <div className="pb-1" style={{ paddingLeft: 8 + (node.level + 1) * 16 }}>
+          {members.length === 0 ? (
+            <p className="py-1 text-[10px] text-slate-500">
+              No document from this group is on the current page. Use the page controls to reach the rest of the dataset.
+            </p>
+          ) : (
+            <>
+              <table className="w-full text-[10px] border-collapse">
+                <tbody>
+                  {members.map((row) => (
+                    <tr key={row.key} className="border-b border-slate-100">
+                      <td className="px-1 py-0.5 font-semibold text-[#1f4842]">{row.documentNo}</td>
+                      <td className="px-1 py-0.5 text-slate-600">{row.documentDate}</td>
+                      <td className="px-1 py-0.5 text-slate-700">{row.partyName}</td>
+                      <td className="px-1 py-0.5 text-right font-mono text-slate-800">{money(row.billAmount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {members.length < node.count && (
+                <p className="py-0.5 text-[10px] text-slate-500">
+                  Showing {members.length} of {node.count} documents in this group from the current page.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -147,9 +248,18 @@ export const ReportBillBaseResultsPage: React.FC = () => {
   const [groupBy, setGroupBy] = useState<string[]>(stored?.response.groupBy ?? []);
   const [expanded, setExpanded] = useState<string[]>([]);
   const [itemCache, setItemCache] = useState<Record<string, ReportItemLine[]>>({});
-  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
   const [openGroupKeys, setOpenGroupKeys] = useState<string[]>([]);
   const [exporting, setExporting] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
+
+  const [dragField, setDragField] = useState<string | null>(null);
+  const [dragOverZone, setDragOverZone] = useState(false);
+
+  const [filterKey, setFilterKey] = useState('');
+  const [filterOperator, setFilterOperator] = useState<ReportFilterOperator>('contains');
+  const [filterValue, setFilterValue] = useState('');
+  const [filterValueTo, setFilterValueTo] = useState('');
+  const [filterError, setFilterError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!stored) navigate('/reports/sales-purchase/bill-base', { replace: true });
@@ -181,7 +291,6 @@ export const ReportBillBaseResultsPage: React.FC = () => {
         setSortBy(nextRequest.sortBy ?? null);
         setSortDir(nextRequest.sortDir ?? 'asc');
         setExpanded([]);
-        setColumnFilters({});
         setOpenGroupKeys([]);
         persist(nextRequest, nextResponse);
       } catch (err) {
@@ -196,17 +305,17 @@ export const ReportBillBaseResultsPage: React.FC = () => {
   const columnDefs = response ? response.columns : [];
   const rows = response ? response.rows : [];
 
-  const visibleRows = useMemo(() => {
-    const entries = Object.entries(columnFilters).filter(([, value]) => value.trim() !== '');
-    if (entries.length === 0) return rows;
-    return rows.filter((row) =>
-      entries.every(([key, value]) => {
-        const column = columnDefs.find((entry) => entry.key === key);
-        const text = formatCell(row.values[key], column ?? { key, label: key, type: 'text', align: 'left', width: 10 });
-        return text.toLowerCase().includes(value.trim().toLowerCase());
-      })
-    );
-  }, [rows, columnFilters, columnDefs]);
+  const filterableColumns = useMemo(
+    () => columnDefs.filter((column) => FILTERABLE_COLUMN_KEYS.has(column.key)),
+    [columnDefs]
+  );
+
+  const selectedFilterColumn = filterableColumns.find((column) => column.key === filterKey);
+  const operatorOptions = selectedFilterColumn
+    ? OPERATOR_DEFS.filter((entry) => entry.types.includes(selectedFilterColumn.type))
+    : OPERATOR_DEFS;
+
+  const activeFilters: ReportColumnFilter[] = response?.meta.columnFilters ?? [];
 
   const toggleExpand = useCallback(
     async (row: ReportRow) => {
@@ -253,6 +362,67 @@ export const ReportBillBaseResultsPage: React.FC = () => {
     changeGrouping(next);
   };
 
+  const reorderGroupField = (field: string, targetIndex: number) => {
+    const index = groupBy.indexOf(field);
+    if (index < 0 || targetIndex < 0 || targetIndex >= groupBy.length || index === targetIndex) return;
+    const next = [...groupBy];
+    next.splice(index, 1);
+    next.splice(targetIndex, 0, field);
+    changeGrouping(next);
+  };
+
+  const handleGroupDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setDragOverZone(false);
+    const payload = event.dataTransfer.getData('text/plain') || dragField || '';
+    setDragField(null);
+    if (payload.startsWith('chip:')) {
+      reorderGroupField(payload.slice(5), groupBy.length - 1);
+      return;
+    }
+    addGroupField(payload);
+  };
+
+  const applyColumnFilter = () => {
+    if (!selectedFilterColumn) {
+      setFilterError('Choose a column to filter.');
+      return;
+    }
+    const def = OPERATOR_DEFS.find((entry) => entry.value === filterOperator);
+    const needsValue = filterOperator !== 'empty' && filterOperator !== 'notEmpty';
+    if (needsValue && filterValue.trim() === '') {
+      setFilterError('Enter a value for "' + (def?.label ?? filterOperator) + '".');
+      return;
+    }
+    if (filterOperator === 'between' && filterValueTo.trim() === '') {
+      setFilterError('Enter the second value for "Between".');
+      return;
+    }
+    const next: ReportColumnFilter[] = activeFilters
+      .filter((entry) => entry.key !== selectedFilterColumn.key)
+      .concat([
+        {
+          key: selectedFilterColumn.key,
+          operator: filterOperator,
+          value: needsValue ? filterValue.trim() : null,
+          valueTo: filterOperator === 'between' ? filterValueTo.trim() : null,
+        },
+      ]);
+    setFilterError(null);
+    setFilterValue('');
+    setFilterValueTo('');
+    void reload({ columnFilters: next, page: 1 });
+  };
+
+  const removeColumnFilter = (key: string) => {
+    void reload({ columnFilters: activeFilters.filter((entry) => entry.key !== key), page: 1 });
+  };
+
+  const clearColumnFilters = () => {
+    if (activeFilters.length === 0) return;
+    void reload({ columnFilters: [], page: 1 });
+  };
+
   const goToPage = (page: number) => {
     if (!response) return;
     if (page < 1 || page > response.pagination.totalPages) return;
@@ -265,20 +435,32 @@ export const ReportBillBaseResultsPage: React.FC = () => {
     setError(null);
     try {
       const result = await exportReportBillBaseXlsx({ ...request, page: 1, pageSize: 0 });
-      const url = URL.createObjectURL(result.blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = result.filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      downloadBlob(result.blob, result.filename);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to export the report to Excel.');
     } finally {
       setExporting(false);
     }
   }, [request]);
+
+  const handlePdfExport = useCallback(async () => {
+    if (!request) return;
+    setExportingPdf(true);
+    setError(null);
+    try {
+      const result = await exportReportBillBasePdf({
+        ...request,
+        page: 1,
+        pageSize: 0,
+        pdfOrientation: landscape ? 'landscape' : 'portrait',
+      });
+      downloadBlob(result.blob, result.filename);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate the PDF.');
+    } finally {
+      setExportingPdf(false);
+    }
+  }, [request, landscape]);
 
   const openPrint = useCallback(() => {
     if (!request || !response) return;
@@ -313,10 +495,8 @@ export const ReportBillBaseResultsPage: React.FC = () => {
     const keys: string[] = [];
     const walk = (nodes: ReportGroupSummary[]) => {
       nodes.forEach((node) => {
-        if (node.children && node.children.length > 0) {
-          keys.push(node.key);
-          walk(node.children);
-        }
+        keys.push(node.key);
+        if (node.children && node.children.length > 0) walk(node.children);
       });
     };
     walk(response.groups);
@@ -370,8 +550,8 @@ export const ReportBillBaseResultsPage: React.FC = () => {
           <button
             type="button"
             onClick={() => void handleExport()}
-            disabled={exporting || response.rows.length === 0}
-            title={response.rows.length === 0 ? 'There are no rows to export.' : 'Download a real .xlsx workbook built from the loaded rows.'}
+            disabled={exporting || response.rowCount === 0}
+            title={response.rowCount === 0 ? 'There are no rows to export.' : 'Download a real .xlsx workbook built from the complete filtered dataset.'}
             className="h-6 px-2 rounded bg-[#107c41] hover:bg-[#0c6334] text-white font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50"
           >
             {exporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
@@ -379,9 +559,19 @@ export const ReportBillBaseResultsPage: React.FC = () => {
           </button>
           <button
             type="button"
+            onClick={() => void handlePdfExport()}
+            disabled={exportingPdf || response.rowCount === 0}
+            title={response.rowCount === 0 ? 'There are no rows to export.' : 'Download a genuine multi-page .pdf generated on the server from the complete filtered dataset.'}
+            className="h-6 px-2 rounded bg-[#b3261e] hover:bg-[#8f1d17] text-white font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50"
+          >
+            {exportingPdf ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
+            Download PDF
+          </button>
+          <button
+            type="button"
             onClick={openPrint}
-            disabled={response.rows.length === 0}
-            title={response.rows.length === 0 ? 'There are no rows to print.' : 'Open the A4 print preview.'}
+            disabled={response.rowCount === 0}
+            title={response.rowCount === 0 ? 'There are no rows to print.' : 'Open the A4 print preview (browser Print / Save as PDF).'}
             className="h-6 px-2 rounded bg-[#3b6ea5] hover:bg-[#2f5a87] text-white font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50"
           >
             <Printer className="w-3 h-3" />
@@ -419,12 +609,46 @@ export const ReportBillBaseResultsPage: React.FC = () => {
 
         <div className="bg-[#eef5f2] border-b border-[#789d93] px-2.5 py-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="font-bold uppercase tracking-wider text-[10px] text-slate-600">Group By</span>
-          <div className="flex items-center gap-1 flex-wrap">
-            {groupBy.length === 0 && <span className="text-[10px] text-slate-500">No grouping - one row per document</span>}
+          <div
+            onDragOver={(event) => {
+              if (!dragField) return;
+              event.preventDefault();
+              setDragOverZone(true);
+            }}
+            onDragLeave={() => setDragOverZone(false)}
+            onDrop={handleGroupDrop}
+            className={
+              'flex items-center gap-1 flex-wrap min-h-7 px-1.5 py-0.5 rounded border border-dashed ' +
+              (dragOverZone ? 'border-[#2c5f57] bg-emerald-100' : 'border-[#9dbdb5] bg-white/70')
+            }
+            title="Drop an eligible column header here to group the report"
+          >
+            {groupBy.length === 0 && (
+              <span className="text-[10px] text-slate-500 italic">Drag a column here to group the report</span>
+            )}
             {groupBy.map((field, index) => (
               <span
                 key={field}
-                className="flex items-center gap-1 bg-white border border-[#789d93] rounded px-1.5 py-0.5 text-[10px] font-bold text-slate-700"
+                draggable
+                onDragStart={(event) => {
+                  event.dataTransfer.setData('text/plain', 'chip:' + field);
+                  setDragField('chip:' + field);
+                }}
+                onDragEnd={() => setDragField(null)}
+                onDragOver={(event) => {
+                  if (!dragField) return;
+                  event.preventDefault();
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  const payload = event.dataTransfer.getData('text/plain') || dragField || '';
+                  setDragField(null);
+                  setDragOverZone(false);
+                  if (payload.startsWith('chip:')) reorderGroupField(payload.slice(5), index);
+                  else addGroupField(payload);
+                }}
+                className="flex items-center gap-1 bg-white border border-[#789d93] rounded px-1.5 py-0.5 text-[10px] font-bold text-slate-700 cursor-grab"
               >
                 <GripVertical className="w-2.5 h-2.5 text-slate-400" />
                 {index + 1}. {columnDefs.find((entry) => entry.key === field)?.label ?? FIELD_LABELS[field] ?? field}
@@ -439,6 +663,16 @@ export const ReportBillBaseResultsPage: React.FC = () => {
                 </button>
               </span>
             ))}
+            {groupBy.length > 0 && (
+              <button
+                type="button"
+                onClick={() => changeGrouping([])}
+                className="ml-1 text-[10px] font-bold text-[#2c5f57] hover:underline cursor-pointer"
+                title="Remove every grouping level"
+              >
+                Clear all
+              </button>
+            )}
           </div>
           <select
             value=""
@@ -457,12 +691,103 @@ export const ReportBillBaseResultsPage: React.FC = () => {
             ))}
           </select>
           <span className="ml-auto flex items-center gap-2 text-[10px] text-slate-600">
-            <span className="font-mono">{response.pagination.total} documents</span>
+            <span className="font-mono">{response.rowCount} documents match</span>
             <span className="text-slate-300">|</span>
-            <span className="font-mono">{visibleRows.length} shown on this page</span>
-            <button type="button" onClick={toggleLandscape} className="px-1.5 py-0.5 border border-[#789d93] bg-white rounded font-bold text-slate-700 hover:bg-slate-100 cursor-pointer" title="Landscape is applied on the print preview.">
+            <span className="font-mono">{rows.length} on this page</span>
+            <button type="button" onClick={toggleLandscape} className="px-1.5 py-0.5 border border-[#789d93] bg-white rounded font-bold text-slate-700 hover:bg-slate-100 cursor-pointer" title="Orientation is applied to the print preview and the direct PDF export.">
               {landscape ? 'Landscape' : 'Portrait'}
             </button>
+          </span>
+        </div>
+
+        <div className="bg-[#f7fbf9] border-b border-[#789d93] px-2.5 py-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="font-bold uppercase tracking-wider text-[10px] text-slate-600">Column Filters</span>
+          <select
+            value={filterKey}
+            onChange={(event) => {
+              const key = event.target.value;
+              setFilterKey(key);
+              const column = filterableColumns.find((entry) => entry.key === key);
+              const first = column ? OPERATOR_DEFS.find((entry) => entry.types.includes(column.type)) : undefined;
+              setFilterOperator(first ? first.value : 'contains');
+              setFilterValue('');
+              setFilterValueTo('');
+              setFilterError(null);
+            }}
+            className="h-6 px-1 bg-white border border-[#789d93] rounded text-[10px] text-slate-700 cursor-pointer"
+            title="Column filters are applied by the server to the complete matching dataset, not just the visible page."
+          >
+            <option value="">Select column...</option>
+            {filterableColumns.map((column) => (
+              <option key={column.key} value={column.key}>
+                {column.label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={filterOperator}
+            onChange={(event) => setFilterOperator(event.target.value as ReportFilterOperator)}
+            disabled={!selectedFilterColumn}
+            className="h-6 px-1 bg-white border border-[#789d93] rounded text-[10px] text-slate-700 cursor-pointer disabled:opacity-50"
+            title="Only operators valid for the selected column type are offered."
+          >
+            {operatorOptions.map((entry) => (
+              <option key={entry.value} value={entry.value}>
+                {entry.label}
+              </option>
+            ))}
+          </select>
+          {filterOperator !== 'empty' && filterOperator !== 'notEmpty' && (
+            <input
+              type={selectedFilterColumn?.type === 'date' ? 'date' : selectedFilterColumn?.type === 'text' ? 'text' : 'number'}
+              value={filterValue}
+              onChange={(event) => setFilterValue(event.target.value)}
+              placeholder={filterOperator === 'between' ? 'From' : 'Filter all results'}
+              className="h-6 px-1 w-44 bg-white border border-[#789d93] rounded text-[10px] text-slate-800"
+            />
+          )}
+          {filterOperator === 'between' && (
+            <input
+              type={selectedFilterColumn?.type === 'date' ? 'date' : 'number'}
+              value={filterValueTo}
+              onChange={(event) => setFilterValueTo(event.target.value)}
+              placeholder="To"
+              className="h-6 px-1 w-32 bg-white border border-[#789d93] rounded text-[10px] text-slate-800"
+            />
+          )}
+          <button
+            type="button"
+            onClick={applyColumnFilter}
+            disabled={loading}
+            className="h-6 px-2 rounded bg-[#2c5f57] hover:bg-[#204741] text-white font-bold cursor-pointer disabled:opacity-50"
+          >
+            Apply Filter
+          </button>
+          {activeFilters.length > 0 && (
+            <button
+              type="button"
+              onClick={clearColumnFilters}
+              disabled={loading}
+              className="h-6 px-2 rounded border border-[#789d93] bg-white text-slate-700 font-bold hover:bg-slate-100 cursor-pointer disabled:opacity-50"
+            >
+              Clear Filters
+            </button>
+          )}
+          {filterError && <span className="text-[10px] font-semibold text-red-700">{filterError}</span>}
+          {activeFilters.length > 0 && (
+            <span className="flex flex-wrap items-center gap-1">
+              {activeFilters.map((filter) => (
+                <span key={filter.key} className="flex items-center gap-1 bg-emerald-50 border border-[#789d93] rounded px-1.5 py-0.5 text-[10px] font-semibold text-slate-700">
+                  {describeFilter(filter, columnDefs)}
+                  <button type="button" onClick={() => removeColumnFilter(filter.key)} className="text-red-600 cursor-pointer" title="Remove this filter">
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </span>
+              ))}
+            </span>
+          )}
+          <span className="ml-auto text-[10px] text-slate-500">
+            Filters and totals cover every matching document, not only this page.
           </span>
         </div>
 
@@ -479,7 +804,7 @@ export const ReportBillBaseResultsPage: React.FC = () => {
               </button>
             </div>
             {response.groups.map((node) => (
-              <GroupNode key={node.key} node={node} level={0} openKeys={openGroupKeys} onToggle={toggleGroupKey} />
+              <GroupNode key={node.key} node={node} path={[]} rows={rows} openKeys={openGroupKeys} onToggle={toggleGroupKey} />
             ))}
           </div>
         )}
@@ -506,45 +831,53 @@ export const ReportBillBaseResultsPage: React.FC = () => {
           <table className="w-full border-collapse text-[11px]">
             <thead className="sticky top-0 z-10">
               <tr className="bg-[#2c5f57] text-white">
-                {columnDefs.map((column) => (
-                  <th
-                    key={column.key}
-                    onClick={() => applySort(column.key)}
-                    title="Sorting re-runs the report on the server so the totals stay dataset-wide."
-                    className={
-                      'px-1.5 py-1 font-bold whitespace-nowrap border-r border-[#1f4842] cursor-pointer hover:bg-[#204741] ' +
-                      (column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : 'text-left')
-                    }
-                  >
-                    {column.label}
-                    {sortBy === column.key && <span className="ml-1 text-emerald-300">{sortDir === 'asc' ? '^' : 'v'}</span>}
-                  </th>
-                ))}
-              </tr>
-              <tr className="bg-[#d7e8e2] border-b border-[#789d93]">
-                {columnDefs.map((column) => (
-                  <th key={column.key} className="px-0.5 py-0.5 border-r border-[#c2dcd5]">
-                    <input
-                      type="text"
-                      value={columnFilters[column.key] ?? ''}
-                      onChange={(event) => setColumnFilters((prev) => ({ ...prev, [column.key]: event.target.value }))}
-                      placeholder="filter page"
-                      title="Filters only the rows loaded on this page. Change filters on the configuration screen to filter the whole dataset."
-                      className="w-full h-5 px-1 bg-white border border-[#a8c4bc] rounded text-[10px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#2c5f57]"
-                    />
-                  </th>
-                ))}
+                {columnDefs.map((column) => {
+                  const groupable = GROUPABLE.includes(column.key);
+                  const grouped = groupBy.includes(column.key);
+                  return (
+                    <th
+                      key={column.key}
+                      draggable={groupable}
+                      onDragStart={(event) => {
+                        if (!groupable) return;
+                        event.dataTransfer.setData('text/plain', column.key);
+                        setDragField(column.key);
+                      }}
+                      onDragEnd={() => setDragField(null)}
+                      title={
+                        groupable
+                          ? 'Click to sort on the server. Drag this header into the Group By bar to group the whole dataset.'
+                          : 'Click to sort on the server so the totals stay dataset-wide.'
+                      }
+                      className={
+                        'px-1.5 py-1 font-bold whitespace-nowrap border-r border-[#1f4842] hover:bg-[#204741] ' +
+                        (groupable ? 'cursor-grab ' : '') +
+                        (grouped ? 'bg-[#204741] ' : '') +
+                        (column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : 'text-left')
+                      }
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        {groupable && <GripVertical className="w-2.5 h-2.5 text-emerald-200/70" />}
+                        <button type="button" onClick={() => applySort(column.key)} className="cursor-pointer">
+                          {column.label}
+                        </button>
+                        {sortBy === column.key && <span className="text-emerald-300">{sortDir === 'asc' ? '^' : 'v'}</span>}
+                        {grouped && <span className="text-[9px] text-emerald-200">grouped</span>}
+                      </span>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
-              {visibleRows.length === 0 && (
+              {rows.length === 0 && (
                 <tr>
                   <td colSpan={Math.max(1, columnDefs.length)} className="px-3 py-6 text-center text-slate-500">
                     No document matches the current date range and filters. The report only shows real stored documents.
                   </td>
                 </tr>
               )}
-              {visibleRows.map((row, index) => {
+              {rows.map((row, index) => {
                 const isOpen = expanded.includes(row.key);
                 const lines = itemCache[row.key];
                 return (
@@ -681,6 +1014,14 @@ export const ReportBillBaseResultsPage: React.FC = () => {
           <span className="text-slate-300">|</span>
           <span className="text-[10px] text-slate-600">
             Item details: <span className="font-bold text-slate-800">{response.meta.printItemDetails ? 'on' : 'off'}</span>
+          </span>
+          <span className="text-slate-300">|</span>
+          <span className="text-[10px] text-slate-600">
+            Filtered rows:{' '}
+            <span className="font-bold text-slate-800">{response.rowCount}</span>
+            {activeFilters.length > 0 && (
+              <span className="text-slate-500"> of {response.pagination.total} in range</span>
+            )}
           </span>
           <div className="ml-auto flex items-center gap-1">
             <button

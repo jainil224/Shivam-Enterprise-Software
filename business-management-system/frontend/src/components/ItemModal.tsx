@@ -36,6 +36,7 @@ export const ItemModal: React.FC<ItemModalProps> = ({
   const [itemCode, setItemCode] = useState('');
   const [itemName, setItemName] = useState('');
   const [itemCategory, setItemCategory] = useState('');
+  const [itemGroupId, setItemGroupId] = useState('');
   const [itemType, setItemType] = useState<ItemType>('YARN');
   const [unit, setUnit] = useState<UnitOfMeasure>('KG');
   const [hsnCode, setHsnCode] = useState('');
@@ -64,6 +65,7 @@ export const ItemModal: React.FC<ItemModalProps> = ({
       setItemCode(itemToEdit.itemCode ?? '');
       setItemName(itemToEdit.itemName ?? '');
       setItemCategory(itemToEdit.itemCategory ?? '');
+      setItemGroupId(itemToEdit.itemGroupId ?? '');
       setItemType(itemToEdit.itemType ?? 'YARN');
       setUnit(itemToEdit.unit ?? 'KG');
       setHsnCode(itemToEdit.hsnCode ?? '');
@@ -84,6 +86,7 @@ export const ItemModal: React.FC<ItemModalProps> = ({
       setItemCode('');
       setItemName('');
       setItemCategory('');
+      setItemGroupId('');
       setItemType('YARN');
       setUnit('KG');
       setHsnCode('');
@@ -130,6 +133,7 @@ export const ItemModal: React.FC<ItemModalProps> = ({
       itemCode: itemCode.trim().toUpperCase(),
       itemName: itemName.trim(),
       itemCategory: itemCategory.trim() || null,
+      itemGroupId: itemGroupId || null,
       itemType,
       unit,
       hsnCode: hsnCode.trim() || null,
@@ -268,6 +272,28 @@ export const ItemModal: React.FC<ItemModalProps> = ({
                 placeholder="Polyester Yarn"
                 className={inputCls}
               />
+            </div>
+
+            <div>
+              <label className={labelCls} htmlFor="itemGroup">
+                Item Group
+              </label>
+              <select
+                id="itemGroup"
+                value={itemGroupId}
+                onChange={(event) => setItemGroupId(event.target.value)}
+                className={`${inputCls} ${fieldErrors.itemGroupId ? errorInputCls : ''}`}
+              >
+                <option value="">Unassigned</option>
+                {(lookups?.itemGroups ?? []).map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.groupName}
+                  </option>
+                ))}
+              </select>
+              {fieldErrors.itemGroupId && (
+                <p className="text-[10.5px] text-rose-600 mt-0.5">{fieldErrors.itemGroupId}</p>
+              )}
             </div>
 
             <div>

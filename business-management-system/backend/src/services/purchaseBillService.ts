@@ -8,6 +8,12 @@ export interface CreatePurchaseBillPayload {
   billDate?: string;
   sourceChallanId?: string | null;
   partyId?: string | null;
+  bookId?: string | null;
+  brokerId?: string | null;
+  transporterId?: string | null;
+  salespersonId?: string | null;
+  deliveryPartyId?: string | null;
+  vehicleNumber?: string | null;
   supplierGstin?: string | null;
   supplierLegalName: string;
   supplierTradeName?: string | null;
@@ -24,6 +30,7 @@ export interface CreatePurchaseBillPayload {
   placeOfSupply?: string | null;
   gstRate?: number; // e.g. 5, 12, 18, 0
   items: Array<{
+    itemId?: string | null;
     itemDescription: string;
     hsnCode?: string | null;
     quantity: number;
@@ -33,9 +40,23 @@ export interface CreatePurchaseBillPayload {
     cartonNumber?: string | null;
     lotNumber?: string | null;
     grade?: string | null;
+    yarnQualityId?: string | null;
+    yarnGradeId?: string | null;
     cops?: number | null;
   }>;
   remarks?: string | null;
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function assertUuidOrNull(value: string | null | undefined, field: string): string | null {
+  if (!value) return null;
+  if (!UUID_PATTERN.test(value)) {
+    const err: any = new Error(`${field} must be a valid identifier.`);
+    err.statusCode = 400;
+    throw err;
+  }
+  return value;
 }
 
 export class PurchaseBillService {
@@ -144,6 +165,61 @@ export class PurchaseBillService {
     const companyGstin = company.gstin ? company.gstin.trim().toUpperCase() : '';
     const companyStateCode = companyGstin ? companyGstin.substring(0, 2) : '24'; // Default 24 (Gujarat)
 
+    // 3b. Validate Phase 15.2 master references (company + financial year scoped)
+    const bookId = assertUuidOrNull(payload.bookId, 'Purchase book');
+    const brokerId = assertUuidOrNull(payload.brokerId, 'Broker');
+    const transporterId = assertUuidOrNull(payload.transporterId, 'Transporter');
+    const salespersonId = assertUuidOrNull(payload.salespersonId, 'Salesperson');
+    const deliveryPartyId = assertUuidOrNull(payload.deliveryPartyId, 'Delivery party');
+
+    if (bookId) {
+      const book = await prisma.purchaseBook.findFirst({
+        where: { id: bookId, companyId, financialYearId },
+        select: { id: true },
+      });
+      if (!book) {
+        const err: any = new Error('Selected purchase book does not belong to the active company and financial year.');
+        err.statusCode = 400;
+        err.field = 'bookId';
+        throw err;
+      }
+    }
+
+    const masterChecks: Array<{ field: string; id: string | null; model: 'broker' | 'transporter' | 'salesperson' }> = [
+      { field: 'brokerId', id: brokerId, model: 'broker' },
+      { field: 'transporterId', id: transporterId, model: 'transporter' },
+      { field: 'salespersonId', id: salespersonId, model: 'salesperson' },
+    ];
+    for (const check of masterChecks) {
+      if (!check.id) continue;
+      const where = { id: check.id, companyId } as any;
+      const found =
+        check.model === 'broker'
+          ? await prisma.broker.findFirst({ where, select: { id: true } })
+          : check.model === 'transporter'
+            ? await prisma.transporter.findFirst({ where, select: { id: true } })
+            : await prisma.salesperson.findFirst({ where, select: { id: true } });
+      if (!found) {
+        const err: any = new Error(`Selected ${check.model} does not belong to the active company.`);
+        err.statusCode = 400;
+        err.field = check.field;
+        throw err;
+      }
+    }
+
+    if (deliveryPartyId) {
+      const deliveryParty = await prisma.party.findFirst({
+        where: { id: deliveryPartyId, companyId },
+        select: { id: true },
+      });
+      if (!deliveryParty) {
+        const err: any = new Error('Selected delivery party does not belong to the active company.');
+        err.statusCode = 400;
+        err.field = 'deliveryPartyId';
+        throw err;
+      }
+    }
+
     // 4. Validate Items & Compute Decimal Totals
     const rawItems = payload.items || [];
     if (!Array.isArray(rawItems) || rawItems.length === 0) {
@@ -179,6 +255,7 @@ export class PurchaseBillService {
       totalTaxableAmount += lineTaxable;
 
       return {
+        itemId: assertUuidOrNull(item.itemId, `Item #${idx + 1} item`),
         itemDescription: item.itemDescription || 'Texturised Polyester Yarn',
         hsnCode: item.hsnCode || '5402',
         quantity: qty,
@@ -189,12 +266,48 @@ export class PurchaseBillService {
         cartonNumber: item.cartonNumber || null,
         lotNumber: item.lotNumber || null,
         grade: item.grade || null,
+        yarnQualityId: assertUuidOrNull(item.yarnQualityId, `Item #${idx + 1} yarn quality`),
+        yarnGradeId: assertUuidOrNull(item.yarnGradeId, `Item #${idx + 1} yarn grade`),
         cops: item.cops !== undefined && item.cops !== null ? Number(item.cops) : null,
       };
     });
 
     totalTaxableAmount = Math.round(totalTaxableAmount * 100) / 100;
     totalQuantity = Math.round(totalQuantity * 1000) / 1000;
+
+    // 4b. Every line-level master reference must belong to the active company.
+    const lineItemIds = [...new Set(calculatedItems.map((line) => line.itemId).filter((id): id is string => Boolean(id)))];
+    if (lineItemIds.length > 0) {
+      const found = await prisma.item.count({ where: { companyId, id: { in: lineItemIds } } });
+      if (found !== lineItemIds.length) {
+        const err: any = new Error('One or more line items do not belong to the active company.');
+        err.statusCode = 400;
+        err.field = 'items';
+        throw err;
+      }
+    }
+
+    const qualityIds = [...new Set(calculatedItems.map((line) => line.yarnQualityId).filter((id): id is string => Boolean(id)))];
+    if (qualityIds.length > 0) {
+      const found = await prisma.yarnQuality.count({ where: { companyId, id: { in: qualityIds } } });
+      if (found !== qualityIds.length) {
+        const err: any = new Error('One or more yarn qualities do not belong to the active company.');
+        err.statusCode = 400;
+        err.field = 'items';
+        throw err;
+      }
+    }
+
+    const gradeIds = [...new Set(calculatedItems.map((line) => line.yarnGradeId).filter((id): id is string => Boolean(id)))];
+    if (gradeIds.length > 0) {
+      const found = await prisma.yarnGrade.count({ where: { companyId, id: { in: gradeIds } } });
+      if (found !== gradeIds.length) {
+        const err: any = new Error('One or more yarn grades do not belong to the active company.');
+        err.statusCode = 400;
+        err.field = 'items';
+        throw err;
+      }
+    }
 
     // 5. GST Calculations (Intra-state CGST+SGST vs Inter-state IGST)
     const gstRate = payload.gstRate !== undefined ? Number(payload.gstRate) : 5; // Default 5% for polyester yarn
@@ -234,6 +347,12 @@ export class PurchaseBillService {
       billDate,
       sourceChallanId: payload.sourceChallanId || null,
       partyId: payload.partyId || null,
+      bookId,
+      brokerId,
+      transporterId,
+      salespersonId,
+      deliveryPartyId,
+      vehicleNumber: payload.vehicleNumber?.trim().toUpperCase() || null,
       supplierGstin,
       supplierLegalName,
       supplierTradeName: payload.supplierTradeName || null,

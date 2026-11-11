@@ -474,9 +474,11 @@ async function runOptionsSection(fixture: Fixture): Promise<void> {
   const options = await reportService.getOptions(fixture.companyId, fixture.financialYearId);
 
   assert(options.formats.length === 20, 'The reference screen exposes 20 report names');
-  assert(options.formats.filter((entry) => entry.support === 'FULL').length === 7, 'Seven formats are fully supported');
-  assert(options.formats.filter((entry) => entry.support === 'PARTIAL').length === 5, 'Five formats are partial (real data, missing field)');
-  assert(options.formats.filter((entry) => entry.support === 'UNAVAILABLE').length === 8, 'Eight formats are unavailable');
+  // Phase 15.2 - the master data and the remaining format logic are implemented, so
+  // every format except the expense report is now fully supported.
+  assert(options.formats.filter((entry) => entry.support === 'FULL').length === 19, 'Nineteen formats are fully supported');
+  assert(options.formats.filter((entry) => entry.support === 'PARTIAL').length === 0, 'No format is left partial');
+  assert(options.formats.filter((entry) => entry.support === 'UNAVAILABLE').length === 1, 'One format is unavailable');
   assert(
     options.formats.every((entry) => entry.support === 'FULL' || Boolean(entry.reason)),
     'Every partial or unavailable format explains itself'
@@ -484,8 +486,8 @@ async function runOptionsSection(fixture: Fixture): Promise<void> {
   const salesmanLabels = options.formats.filter((entry) => entry.label === 'Salesman + Party Wise');
   assert(salesmanLabels.length === 2, 'Both duplicate "Salesman + Party Wise" labels are preserved');
   assert(
-    salesmanLabels.every((entry) => entry.support === 'UNAVAILABLE'),
-    'Both duplicate salesman labels are honestly marked unavailable'
+    salesmanLabels.every((entry) => entry.support === 'FULL' && Boolean(entry.note)),
+    'Both duplicate salesman labels are fully supported and explain the shared grouping'
   );
 
   assert(options.sources.length === 9, 'Nine document sources are declared');
@@ -503,15 +505,35 @@ async function runOptionsSection(fixture: Fixture): Promise<void> {
     'General Purchase is not offered after the Phase 14 removal'
   );
 
-  assert(options.columns.length === 30, 'The column catalogue lists 30 columns');
+  assert(options.columns.length === 41, 'The column catalogue lists 41 columns');
+  assert(
+    ['partyGroup', 'partyArea', 'deliveryParty', 'broker', 'transporter', 'salesperson', 'vehicle', 'dueDays', 'grade', 'lotNumber', 'itemGroup'].every(
+      (key) => options.columns.some((column) => column.key === key)
+    ),
+    'The catalogue exposes every Phase 15.2 bill field'
+  );
   assert(options.standardColumns.length === 13, 'The standard layout has 13 columns');
   assert(options.standardColumns[0] === 'srNo', 'The standard layout always starts with Sr No');
   assert(options.books.length === 1, 'Only the real Debit Note book is offered as a book filter');
   assert(options.parties.length === 3, 'All three real parties are offered');
   assert(options.cities.length === 2, 'Cities come from the real party master (2 distinct cities)');
-  assert(options.items.length === 0, 'No Item master rows exist for this fixture, so the item filter stays empty');
+  // Phase 15.1 supersedes the empty filter: the Item filter is now built from
+  // the real descriptions stored on purchase bill lines even without an Item Master.
+  assert(
+    options.items.length === 3 && options.items.every((entry) => entry.meta === 'Purchase bill line'),
+    'The Item filter lists the 3 distinct descriptions stored on purchase bill lines'
+  );
+  assert(
+    options.itemFilter.masterItemCount === 0 && options.itemFilter.billItemCount === 3,
+    'The Item filter reports zero master rows and three real bill descriptions'
+  );
   assert(options.qualities.length === 0, 'No Yarn Quality master rows exist for this fixture');
-  assert(options.unavailableFilters.length === 8, 'The unavailable filter panel documents 8 missing fields');
+  assert(options.unavailableFilters.length === 4, 'The unavailable filter panel documents 4 missing fields');
+  assert(
+    options.unavailableFilters.map((entry) => entry.key).sort().join(',') ===
+      ['attributes', 'quantityColumns', 'schedule', 'wiseType'].sort().join(','),
+    'The unavailable filter list names exactly the fields without a business model'
+  );
   assert(
     options.unavailableFilters.every((entry) => entry.reason.trim().length > 0),
     'Every unavailable filter states the missing source field'
@@ -549,10 +571,11 @@ async function runValidationSection(fixture: Fixture): Promise<void> {
     400,
     'Selected mode rejects an unknown source key'
   );
-  await expectError(
-    () => run(fixture, { format: 'BROKER_PARTY_WISE' }),
-    400,
-    'Broker + Party Wise is rejected with a reason instead of returning empty rows'
+  // Phase 15.2 - Broker is a real master reference, so this format now runs.
+  const brokerParty = await run(fixture, { format: 'BROKER_PARTY_WISE' });
+  assert(
+    brokerParty.groupBy.join(',') === 'broker,partyName',
+    'Broker + Party Wise groups by the Broker master plus Party'
   );
   await expectError(() => run(fixture, { format: 'NOT_A_FORMAT' }), 400, 'An unknown format key is rejected');
   await expectError(
@@ -675,7 +698,7 @@ async function runFilterSection(fixture: Fixture): Promise<void> {
   const byBook = await run(fixture, { bookId: fixture.bookId });
   assert(byBook.rows.length === 0, 'The book filter excludes purchase bills, which carry no book');
   assert(
-    byBook.warnings.some((warning) => warning.includes('Book filter only matches Debit Notes')),
+    byBook.warnings.some((warning) => warning.includes('Book filter: no document in the selected dates carries the selected book')),
     'The book filter explains why purchase bills disappeared'
   );
 
@@ -714,14 +737,15 @@ async function runGroupingSection(fixture: Fixture): Promise<void> {
     'Custom grouping nests child groups'
   );
 
-  await expectError(() => run(fixture, { groupBy: ['broker'] }), 400, 'Grouping by a non-existent field is rejected');
+  await expectError(() => run(fixture, { groupBy: ['hsnCode'] }), 400, 'Grouping by a column without grouping meaning is rejected');
 
   const qualityWise = await run(fixture, { format: 'QUALITY_WISE' });
+  assert(qualityWise.groupBy.join(',') === 'quality', 'Quality Wise groups by the real Quality column');
   assert(
-    qualityWise.warnings.some((warning) => warning.includes('Quality is recorded only on Debit Note lines')),
-    'A partial format returns an explicit warning'
+    !qualityWise.warnings.some((warning) => warning.includes('has no itemId foreign key')),
+    'Quality grouping no longer reports a missing item foreign key'
   );
-  assert(qualityWise.groups.length === 1, 'Partial quality grouping falls into the honest "not recorded" group');
+  assert(qualityWise.groups.length === 1, 'Unassigned quality falls into the honest "not recorded" group');
 }
 
 async function runSummarySection(fixture: Fixture): Promise<void> {

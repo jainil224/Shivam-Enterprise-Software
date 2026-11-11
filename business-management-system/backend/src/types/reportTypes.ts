@@ -19,6 +19,54 @@ export type ReportColumnType = 'text' | 'number' | 'date' | 'currency';
 export type ReportColumnAlign = 'left' | 'right' | 'center';
 export type ReportFormatSupport = 'FULL' | 'PARTIAL' | 'UNAVAILABLE';
 
+// Phase 15.1 - dataset-wide column filters. Only operators valid for the
+// column data type are accepted; anything else is a validation error.
+export type ReportFilterOperator =
+  | 'contains'
+  | 'equals'
+  | 'notEquals'
+  | 'gt'
+  | 'gte'
+  | 'lt'
+  | 'lte'
+  | 'between'
+  | 'before'
+  | 'after'
+  | 'empty'
+  | 'notEmpty';
+
+export interface ReportColumnFilter {
+  key: string;
+  operator: ReportFilterOperator;
+  value?: string | null;
+  valueTo?: string | null;
+}
+
+export interface ReportFilterOperatorDef {
+  value: ReportFilterOperator;
+  label: string;
+  types: ReportColumnType[];
+}
+
+// Phase 15.1 - a saved column layout persisted in PostgreSQL, company scoped.
+export interface ReportColumnLayout {
+  id: string;
+  reportType: string;
+  name: string;
+  columns: string[];
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+  unavailableColumns: string[];
+}
+
+export interface ReportColumnLayoutInput {
+  reportType?: string;
+  name: string;
+  columns: string[];
+  isDefault?: boolean;
+}
+
 export interface ReportColumnDef {
   key: string;
   label: string;
@@ -58,9 +106,25 @@ export interface ReportRow {
   partyGstin: string;
   partyCity: string;
   partyState: string;
+  partyGroupId: string | null;
+  partyGroup: string;
+  areaId: string | null;
+  partyArea: string;
+  deliveryPartyId: string | null;
+  deliveryParty: string;
+  brokerId: string | null;
+  broker: string;
+  transporterId: string | null;
+  transporter: string;
+  salespersonId: string | null;
+  salesperson: string;
+  vehicle: string;
+  dueDays: number | null;
   bookId: string | null;
   bookName: string;
   quality: string;
+  grade: string;
+  lotNumber: string;
   hsnCode: string;
   itemGroup: string;
   itemDescription: string;
@@ -71,6 +135,7 @@ export interface ReportRow {
   basicRate: number | null;
   avgRate: number | null;
   netRate: number | null;
+  basicAmount: number;
   discountAmount: number;
   taxableAmount: number;
   sgstAmount: number;
@@ -121,6 +186,7 @@ export interface ReportFormatDef {
   groupBy: string[];
   support: ReportFormatSupport;
   reason?: string;
+  note?: string;
 }
 
 export interface ReportSourceDef {
@@ -135,6 +201,9 @@ export interface ReportFilterOption {
   value: string;
   label: string;
   meta?: string;
+  /** Phase 15.2 - keys used to refresh dependent filters (e.g. a party's group/area). */
+  partyGroupId?: string | null;
+  areaId?: string | null;
 }
 
 export interface ReportOptionsResponse {
@@ -146,11 +215,20 @@ export interface ReportOptionsResponse {
   sources: ReportSourceDef[];
   books: ReportFilterOption[];
   parties: ReportFilterOption[];
+  partyGroups: ReportFilterOption[];
+  areas: ReportFilterOption[];
+  brokers: ReportFilterOption[];
+  transporters: ReportFilterOption[];
+  salespersons: ReportFilterOption[];
+  vehicles: ReportFilterOption[];
   items: ReportFilterOption[];
+  itemFilter: { masterItemCount: number; billItemCount: number; note: string };
   itemGroups: ReportFilterOption[];
   cities: ReportFilterOption[];
   qualities: ReportFilterOption[];
   unavailableFilters: Array<{ key: string; label: string; reason: string }>;
+  filterOperators: ReportFilterOperatorDef[];
+  requiredColumns: string[];
   columns: ReportColumnDef[];
   standardColumns: string[];
   rateColumns: Array<{ value: ReportRateColumn; label: string }>;
@@ -166,6 +244,13 @@ export interface ReportRunRequest {
   format: string;
   bookId?: string | null;
   partyId?: string | null;
+  partyGroupId?: string | null;
+  areaId?: string | null;
+  deliveryPartyId?: string | null;
+  brokerId?: string | null;
+  transporterId?: string | null;
+  salespersonId?: string | null;
+  vehicle?: string | null;
   itemId?: string | null;
   itemGroup?: string | null;
   quality?: string | null;
@@ -182,6 +267,8 @@ export interface ReportRunRequest {
   sortBy?: string | null;
   sortDir?: 'asc' | 'desc';
   includeCancelled?: boolean;
+  columnFilters?: ReportColumnFilter[];
+  pdfOrientation?: 'portrait' | 'landscape';
 }
 
 export interface ReportRunResponse {
@@ -199,6 +286,8 @@ export interface ReportRunResponse {
     sourceLabels: string[];
     printItemDetails: boolean;
     rateColumn: ReportRateColumn;
+    columnFilters: ReportColumnFilter[];
+    activeFilters: string[];
   };
   columns: ReportColumnDef[];
   rows: ReportRow[];
