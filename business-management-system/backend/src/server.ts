@@ -23,6 +23,9 @@ app.use(
       return callback(new Error(`CORS blocked for origin: ${origin}`));
     },
     credentials: true,
+    // The report exports stream the descriptive filename in these headers.
+    // Without exposure the browser cannot read them on a cross-origin XHR.
+    exposedHeaders: ['Content-Disposition', 'X-Report-Filename'],
   })
 );
 

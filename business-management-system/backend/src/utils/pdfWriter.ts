@@ -231,6 +231,14 @@ interface TextOp {
   text: string;
   bold?: boolean;
   size?: number;
+  /** Renders with Courier-Oblique / Courier-BoldOblique. */
+  italic?: boolean;
+  /**
+   * Explicit fill colour for this text run. Defaults to black. Rects are written
+   * before text, so without this every glyph inherits the last rectangle's fill
+   * colour and prints washed-out (grey text on white paper).
+   */
+  color?: [number, number, number];
 }
 
 interface RectOp {
@@ -295,8 +303,10 @@ function buildContentStream(ops: PageOps): string {
   }
   for (const op of ops.texts) {
     const size = op.size ?? 8;
+    const color = op.color ?? [0, 0, 0];
     parts.push(
-      'BT /' + (op.bold ? 'F2' : 'F1') + ' ' + round3(size) + ' Tf 1 0 0 1 ' +
+      round3(color[0]) + ' ' + round3(color[1]) + ' ' + round3(color[2]) + ' rg ' +
+      'BT /' + (op.bold ? (op.italic ? 'F4' : 'F2') : op.italic ? 'F3' : 'F1') + ' ' + round3(size) + ' Tf 1 0 0 1 ' +
       round3(op.x) + ' ' + round3(op.y) + ' Tm (' + escapePdfText(op.text) + ') Tj ET'
     );
   }
@@ -355,6 +365,7 @@ function tableHeader(layout: PdfLayout, top: number): { ops: PageOps; nextY: num
       text: label,
       bold: true,
       size: layout.fontSize,
+      color: [1, 1, 1],
     });
     x += column.width;
   }
@@ -496,6 +507,8 @@ export function buildPdf(options: PdfBuildOptions): PdfBuildResult {
   addObject('__PAGES_PLACEHOLDER__');
   addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>');
   addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>');
+  addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Oblique /Encoding /WinAnsiEncoding >>');
+  addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Courier-BoldOblique /Encoding /WinAnsiEncoding >>');
 
   const kids: number[] = [];
   for (const ops of rendered) {
@@ -504,7 +517,7 @@ export function buildPdf(options: PdfBuildOptions): PdfBuildResult {
     const contentNumber = addObject('<< /Length ' + Buffer.byteLength(stream, 'latin1') + ' >>\nstream\n' + stream + '\nendstream');
     objects[pageNumber - 1] =
       '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + round3(layout.pageWidth) + ' ' + round3(layout.pageHeight) + '] ' +
-      '/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ' + contentNumber + ' 0 R >>';
+      '/Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> /Contents ' + contentNumber + ' 0 R >>';
     kids.push(pageNumber);
   }
   objects[1] = '<< /Type /Pages /Kids [' + kids.map((kid) => kid + ' 0 R').join(' ') + '] /Count ' + kids.length + ' >>';
@@ -529,4 +542,482 @@ export function buildPdf(options: PdfBuildOptions): PdfBuildResult {
   chunks.push(Buffer.from(xref, 'latin1'));
 
   return { buffer: Buffer.concat(chunks), pageCount: rendered.length, layout };
+}
+
+// ---------------------------------------------------------------------------
+// Phase 16.1 - traditional accounting-statement renderer.
+//
+// Produces the five-section Bank Reconciliation Statement as a white A4
+// portrait document with thin black rules, repeating table headers and no
+// decorative fills. Only presentation lives here: every figure is supplied by
+// the caller from the existing reconciliation engine, which is never touched.
+// ---------------------------------------------------------------------------
+
+export interface StatementCell {
+  /** Cell text exactly as it should print. */
+  text: string;
+  /** Relative column width, normalised against the other cells in the row. */
+  weight: number;
+  align: PdfAlign;
+  bold?: boolean;
+  italic?: boolean;
+  /** Overrides the block font size for this cell only. */
+  size?: number;
+}
+
+export interface StatementTableTotal {
+  label: string;
+  amount: string;
+  /** Zero-based index of the amount column the total is right-aligned to. */
+  amountColumn: number;
+}
+
+export type StatementBlock =
+  /** One bordered row, optionally split into vertical cells. */
+  | { type: 'row'; cells: StatementCell[]; size?: number }
+  /** Bordered table with a repeating header, an All Clear fallback and a total row. */
+  | {
+      type: 'table';
+      columns: StatementCell[];
+      rows: string[][];
+      emptyText?: string;
+      total?: StatementTableTotal;
+      size?: number;
+    }
+  | { type: 'spacer'; height?: number }
+  /** Free text printed outside the bordered statement, e.g. a difference warning. */
+  | { type: 'note'; text: string; size?: number; bold?: boolean; italic?: boolean; align?: PdfAlign }
+  | { type: 'pageBreak' };
+
+export interface StatementHeaderInfo {
+  companyName: string;
+  companyAddress: string;
+  companyGstin: string;
+  financialYear: string;
+  /** Report title, printed centred and bold italic. */
+  title: string;
+  /** Bank book name, printed centred and bold. */
+  bankName?: string;
+  /** Period line, printed centred beneath the title. */
+  period?: string;
+}
+
+export interface StatementBuildOptions {
+  orientation: 'portrait' | 'landscape';
+  header: StatementHeaderInfo;
+  blocks: StatementBlock[];
+  generatedAt?: Date;
+}
+
+export interface StatementBuildResult {
+  buffer: Buffer;
+  pageCount: number;
+}
+
+const STMT_MARGIN_X = 28;
+const STMT_MARGIN_TOP = 30;
+const STMT_MARGIN_BOTTOM = 36;
+const STMT_FOOTER_Y = 20;
+const STMT_BORDER = 0.5;
+const STMT_BORDER_COLOR: [number, number, number] = [0, 0, 0];
+const STMT_FONT_SIZE = 8.5;
+const STMT_MIN_ROW_HEIGHT = 12;
+const STMT_ROW_PADDING = 5;
+const STMT_CELL_PADDING = 3;
+const STMT_MIN_FONT_SIZE = 7;
+
+/** Row height for a font size: glyph box plus padding, never below the minimum. */
+function statementRowHeight(fontSize: number): number {
+  return Math.max(STMT_MIN_ROW_HEIGHT, Math.round((fontSize + STMT_ROW_PADDING) * 100) / 100);
+}
+
+/**
+ * Fits text into a cell without clipping glyphs. The font shrinks down to the
+ * minimum readable size first; only then is the string truncated.
+ */
+function fitCellText(
+  text: string,
+  maxWidth: number,
+  preferredSize: number
+): { value: string; fontSize: number } {
+  const clean = winAnsi(text);
+  let fontSize = preferredSize;
+  while (fontSize > STMT_MIN_FONT_SIZE && textWidth(clean, fontSize) > maxWidth) {
+    fontSize -= 0.5;
+  }
+  const capacity = Math.max(1, Math.floor(maxWidth / (fontSize * COURIER_ADVANCE)));
+  return { value: fitText(clean, capacity), fontSize };
+}
+
+export function buildStatementPdf(options: StatementBuildOptions): StatementBuildResult {
+  const orientation = options.orientation === 'landscape' ? 'landscape' : 'portrait';
+  const size = PAGE_SIZES[orientation];
+  const left = STMT_MARGIN_X;
+  const usableWidth = size.width - STMT_MARGIN_X * 2;
+  const bodyBottom = STMT_MARGIN_BOTTOM;
+  const pages: PageOps[] = [];
+  let ops: PageOps = { texts: [], rects: [] };
+  let y = size.height - STMT_MARGIN_TOP;
+
+  const newPage = (): void => {
+    pages.push(ops);
+    ops = { texts: [], rects: [] };
+    y = size.height - STMT_MARGIN_TOP;
+  };
+
+  const ensureSpace = (height: number): void => {
+    if (y - height < bodyBottom) newPage();
+  };
+
+  /** Closed thin black frame around one cell or row. */
+  const frame = (x: number, top: number, width: number, height: number): void => {
+    ops.rects.push({ x, y: top - STMT_BORDER, width, height: STMT_BORDER, fill: STMT_BORDER_COLOR });
+    ops.rects.push({ x, y: top - height, width, height: STMT_BORDER, fill: STMT_BORDER_COLOR });
+    ops.rects.push({ x, y: top - height, width: STMT_BORDER, height, fill: STMT_BORDER_COLOR });
+    ops.rects.push({
+      x: x + width - STMT_BORDER,
+      y: top - height,
+      width: STMT_BORDER,
+      height,
+      fill: STMT_BORDER_COLOR,
+    });
+  };
+
+  const verticalRule = (x: number, top: number, height: number): void => {
+    ops.rects.push({ x, y: top - height, width: STMT_BORDER, height, fill: STMT_BORDER_COLOR });
+  };
+
+  const drawText = (
+    text: string,
+    cellLeft: number,
+    cellWidth: number,
+    top: number,
+    height: number,
+    fontSize: number,
+    align: PdfAlign,
+    bold: boolean,
+    italic: boolean
+  ): void => {
+    if (text.length === 0) return;
+    const inner = Math.max(1, cellWidth - STMT_CELL_PADDING * 2);
+    const fitted = fitCellText(text, inner, fontSize);
+    const textW = textWidth(fitted.value, fitted.fontSize);
+    const x =
+      align === 'right'
+        ? cellLeft + cellWidth - STMT_CELL_PADDING - textW
+        : align === 'center'
+          ? cellLeft + Math.max(STMT_CELL_PADDING, (cellWidth - textW) / 2)
+          : cellLeft + STMT_CELL_PADDING;
+    ops.texts.push({
+      x,
+      y: top - height / 2 - fitted.fontSize * 0.32,
+      text: fitted.value,
+      size: fitted.fontSize,
+      bold,
+      italic,
+    });
+  };
+
+  const drawTable = (block: Extract<StatementBlock, { type: 'table' }>): void => {
+    const fontSize = block.size ?? STMT_FONT_SIZE;
+    const headerHeight = statementRowHeight(fontSize);
+    const rowHeight = statementRowHeight(fontSize);
+    const totalHeight = block.total ? statementRowHeight(fontSize) : 0;
+    const columns =
+      block.columns.length > 0
+        ? block.columns
+        : [{ text: '', weight: 10, align: 'left' as PdfAlign }];
+    const totalWeight = columns.reduce((sum, column) => sum + Math.max(1, column.weight), 0);
+    const widths = columns.map((column) => (usableWidth * Math.max(1, column.weight)) / totalWeight);
+    const columnLeft = (index: number): number =>
+      left + widths.slice(0, index).reduce((sum, width) => sum + width, 0);
+
+    const drawHeader = (): void => {
+      frame(left, y, usableWidth, headerHeight);
+      columns.forEach((column, index) => {
+        if (index > 0) verticalRule(columnLeft(index), y, headerHeight);
+        drawText(
+          column.text,
+          columnLeft(index),
+          widths[index],
+          y,
+          headerHeight,
+          column.size ?? fontSize,
+          column.align,
+          true,
+          column.italic ?? false
+        );
+      });
+      y -= headerHeight;
+    };
+
+    // Never strand a header at the foot of a page without a row and the total.
+    ensureSpace(headerHeight + rowHeight + totalHeight);
+    drawHeader();
+
+    if (block.rows.length === 0) {
+      frame(left, y, usableWidth, rowHeight);
+      drawText(
+        block.emptyText ?? 'All Clear',
+        left,
+        usableWidth,
+        y,
+        rowHeight,
+        fontSize,
+        'center',
+        false,
+        true
+      );
+      y -= rowHeight;
+    } else {
+      for (const row of block.rows) {
+        if (y - rowHeight < bodyBottom) {
+          newPage();
+          drawHeader();
+        }
+        frame(left, y, usableWidth, rowHeight);
+        columns.forEach((column, index) => {
+          if (index > 0) verticalRule(columnLeft(index), y, rowHeight);
+          drawText(
+            String(row[index] ?? ''),
+            columnLeft(index),
+            widths[index],
+            y,
+            rowHeight,
+            fontSize,
+            column.align,
+            false,
+            false
+          );
+        });
+        y -= rowHeight;
+      }
+    }
+
+    if (block.total) {
+      if (y - totalHeight < bodyBottom) {
+        newPage();
+        drawHeader();
+      }
+      const amountColumn = Math.min(Math.max(block.total.amountColumn, 0), columns.length - 1);
+      const amountLeft = columnLeft(amountColumn);
+      frame(left, y, usableWidth, totalHeight);
+      drawText(
+        block.total.label,
+        left,
+        amountLeft - left,
+        y,
+        totalHeight,
+        fontSize,
+        'right',
+        true,
+        false
+      );
+      drawText(
+        block.total.amount,
+        amountLeft,
+        widths[amountColumn],
+        y,
+        totalHeight,
+        fontSize,
+        'right',
+        true,
+        false
+      );
+      y -= totalHeight;
+    }
+  };
+
+  // --- Company header: boxed rows, exactly as the printed reference ----------
+  const header = options.header;
+  const nameHeight = statementRowHeight(13);
+  const yearHeight = statementRowHeight(8.5);
+  ensureSpace(nameHeight + yearHeight);
+  frame(left, y, usableWidth, nameHeight + yearHeight);
+  drawText(header.companyName, left, usableWidth, y, nameHeight, 13, 'center', true, true);
+  drawText(header.financialYear, left, usableWidth, y - nameHeight, yearHeight, 8.5, 'center', false, false);
+  y -= nameHeight + yearHeight;
+
+  if (header.companyAddress) {
+    const addressHeight = statementRowHeight(8.5);
+    ensureSpace(addressHeight);
+    frame(left, y, usableWidth, addressHeight);
+    drawText(header.companyAddress, left, usableWidth, y, addressHeight, 8.5, 'center', false, false);
+    y -= addressHeight;
+  }
+
+  const gstinHeight = statementRowHeight(8.5);
+  ensureSpace(gstinHeight);
+  frame(left, y, usableWidth, gstinHeight);
+  drawText(
+    'GSTIN: ' + (header.companyGstin || 'Not recorded'),
+    left,
+    usableWidth,
+    y,
+    gstinHeight,
+    8.5,
+    'left',
+    false,
+    false
+  );
+  y -= gstinHeight;
+
+  if (header.bankName) {
+    const bankHeight = statementRowHeight(9.5);
+    ensureSpace(bankHeight);
+    frame(left, y, usableWidth, bankHeight);
+    drawText('BANK : ' + header.bankName, left, usableWidth, y, bankHeight, 9.5, 'center', true, false);
+    y -= bankHeight;
+  }
+
+  const titleHeight = statementRowHeight(10);
+  const periodHeight = header.period ? statementRowHeight(8.5) : 0;
+  ensureSpace(titleHeight + periodHeight);
+  frame(left, y, usableWidth, titleHeight + periodHeight);
+  drawText(header.title, left, usableWidth, y, titleHeight, 10, 'center', true, true);
+  if (header.period) {
+    drawText(header.period, left, usableWidth, y - titleHeight, periodHeight, 8.5, 'center', false, false);
+  }
+  y -= titleHeight + periodHeight;
+
+  // --- Body blocks ----------------------------------------------------------
+  for (const block of options.blocks) {
+    if (block.type === 'pageBreak') {
+      newPage();
+      continue;
+    }
+
+    if (block.type === 'spacer') {
+      const height = block.height ?? 8;
+      ensureSpace(height);
+      y -= height;
+      continue;
+    }
+
+    if (block.type === 'note') {
+      const noteSize = block.size ?? 8;
+      const maxChars = Math.max(20, Math.floor((usableWidth - 4) / (noteSize * COURIER_ADVANCE)));
+      const lines = wrapText(block.text, maxChars);
+      const height = lines.length * (noteSize + 3) + 4;
+      ensureSpace(height);
+      const align = block.align ?? 'left';
+      for (const line of lines) {
+        const textW = textWidth(line, noteSize);
+        const x =
+          align === 'center'
+            ? left + Math.max(0, (usableWidth - textW) / 2)
+            : align === 'right'
+              ? left + usableWidth - textW
+              : left + 2;
+        ops.texts.push({
+          x,
+          y: y - noteSize,
+          text: line,
+          size: noteSize,
+          bold: block.bold ?? false,
+          italic: block.italic ?? false,
+        });
+        y -= noteSize + 3;
+      }
+      y -= 4;
+      continue;
+    }
+
+    if (block.type === 'row') {
+      const rowSize = block.size ?? STMT_FONT_SIZE;
+      const height = statementRowHeight(rowSize);
+      ensureSpace(height);
+      frame(left, y, usableWidth, height);
+      const totalWeight = block.cells.reduce((sum, cell) => sum + Math.max(1, cell.weight), 0);
+      let cellLeft = left;
+      block.cells.forEach((cell, index) => {
+        const cellWidth = (usableWidth * Math.max(1, cell.weight)) / totalWeight;
+        if (index > 0) verticalRule(cellLeft, y, height);
+        drawText(
+          cell.text,
+          cellLeft,
+          cellWidth,
+          y,
+          height,
+          cell.size ?? rowSize,
+          cell.align,
+          cell.bold ?? false,
+          cell.italic ?? false
+        );
+        cellLeft += cellWidth;
+      });
+      y -= height;
+      continue;
+    }
+
+    drawTable(block);
+  }
+
+  pages.push(ops);
+
+  // --- Footer on every page -------------------------------------------------
+  const generated = options.generatedAt ?? new Date();
+  const stamp = generated.toISOString().slice(0, 19).replace('T', ' ') + ' UTC';
+  pages.forEach((pageOps, pageIndex) => {
+    pageOps.texts.push({ x: left, y: STMT_FOOTER_Y, text: 'Generated ' + stamp, size: 7 });
+    const pageLabel = 'Page ' + (pageIndex + 1) + ' of ' + pages.length;
+    pageOps.texts.push({
+      x: size.width - STMT_MARGIN_X - textWidth(pageLabel, 7),
+      y: STMT_FOOTER_Y,
+      text: pageLabel,
+      size: 7,
+    });
+  });
+
+  // --- Object graph ---------------------------------------------------------
+  const objects: string[] = [];
+  const addObject = (body: string): number => {
+    objects.push(body);
+    return objects.length;
+  };
+
+  addObject('<< /Type /Catalog /Pages 2 0 R >>');
+  addObject('__PAGES_PLACEHOLDER__');
+  addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>');
+  addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>');
+  addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Oblique /Encoding /WinAnsiEncoding >>');
+  addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Courier-BoldOblique /Encoding /WinAnsiEncoding >>');
+
+  const kids: number[] = [];
+  for (const pageOps of pages) {
+    const stream = buildContentStream(pageOps);
+    const pageNumber = addObject('__PAGE_PLACEHOLDER__');
+    const contentNumber = addObject(
+      '<< /Length ' + Buffer.byteLength(stream, 'latin1') + ' >>\nstream\n' + stream + '\nendstream'
+    );
+    objects[pageNumber - 1] =
+      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + round3(size.width) + ' ' + round3(size.height) + '] ' +
+      '/Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> /Contents ' +
+      contentNumber +
+      ' 0 R >>';
+    kids.push(pageNumber);
+  }
+  objects[1] =
+    '<< /Type /Pages /Kids [' + kids.map((kid) => kid + ' 0 R').join(' ') + '] /Count ' + kids.length + ' >>';
+
+  const headerBuffer = Buffer.from('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n', 'latin1');
+  const chunks: Buffer[] = [headerBuffer];
+  const offsets: number[] = [];
+  let cursor = headerBuffer.length;
+  objects.forEach((body, objectIndex) => {
+    offsets.push(cursor);
+    const chunk = Buffer.from(objectIndex + 1 + ' 0 obj\n' + body + '\nendobj\n', 'latin1');
+    chunks.push(chunk);
+    cursor += chunk.length;
+  });
+
+  const xrefOffset = cursor;
+  let xref = 'xref\n0 ' + (objects.length + 1) + '\n0000000000 65535 f \n';
+  for (const offset of offsets) {
+    xref += String(offset).padStart(10, '0') + ' 00000 n \n';
+  }
+  xref += 'trailer\n<< /Size ' + (objects.length + 1) + ' /Root 1 0 R >>\nstartxref\n' + xrefOffset + '\n%%EOF\n';
+  chunks.push(Buffer.from(xref, 'latin1'));
+
+  return { buffer: Buffer.concat(chunks), pageCount: pages.length };
 }

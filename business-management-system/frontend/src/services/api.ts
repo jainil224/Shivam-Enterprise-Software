@@ -57,6 +57,22 @@ import type {
   ReportSavedLayout,
 } from '../types/reports';
 
+import type {
+  BankBookOption,
+  ReconciliationContext,
+  ReconciliationMarkResult,
+  ReconciliationOpeningPayload,
+  ReconciliationOpeningSaveResult,
+  ReconciliationPdfPayload,
+  ReconciliationScopeRequest,
+  ReconciliationStatementBalancePayload,
+  ReconciliationStatementResponse,
+  ReconciliationStatementSaveResult,
+  ReconciliationSummaryResponse,
+  ReconciliationTransactionsResponse,
+  ReconciliationViewType,
+} from '../types/bankReconciliation';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export const apiClient = axios.create({
@@ -1543,4 +1559,106 @@ export const setPurchaseBookStatus = async (id: string, isActive: boolean): Prom
     { isActive }
   );
   return response.data.data;
+};
+
+
+// -------------------------------------------------------------
+// Phase 16 - Bank Reconciliation
+// -------------------------------------------------------------
+export const getBankReconciliationBanks = async (): Promise<BankBookOption[]> => {
+  const response = await apiClient.get<ApiResponse<BankBookOption[]>>('/reports/bank-reconciliation/banks');
+  return response.data.data;
+};
+
+export const getBankReconciliation = async (
+  params: ReconciliationScopeRequest
+): Promise<ReconciliationContext> => {
+  const response = await apiClient.get<ApiResponse<ReconciliationContext>>('/reports/bank-reconciliation', {
+    params,
+  });
+  return response.data.data;
+};
+
+export const saveBankReconciliationOpeningBalance = async (
+  payload: ReconciliationOpeningPayload
+): Promise<ReconciliationOpeningSaveResult> => {
+  const response = await apiClient.post<ApiResponse<ReconciliationOpeningSaveResult>>(
+    '/reports/bank-reconciliation/opening-balance',
+    payload
+  );
+  return response.data.data;
+};
+
+export const saveBankReconciliationStatementBalance = async (
+  payload: ReconciliationStatementBalancePayload
+): Promise<ReconciliationStatementSaveResult> => {
+  const response = await apiClient.post<ApiResponse<ReconciliationStatementSaveResult>>(
+    '/reports/bank-reconciliation/statement-balance',
+    payload
+  );
+  return response.data.data;
+};
+
+export const markBankReconciliationLine = async (
+  journalLineId: string,
+  clearingDate: string
+): Promise<ReconciliationMarkResult> => {
+  const response = await apiClient.post<ApiResponse<ReconciliationMarkResult>>(
+    '/reports/bank-reconciliation/' + journalLineId + '/reconcile',
+    { clearingDate }
+  );
+  return response.data.data;
+};
+
+export const removeBankReconciliationLine = async (
+  journalLineId: string,
+  reason?: string
+): Promise<ReconciliationMarkResult> => {
+  const response = await apiClient.delete<ApiResponse<ReconciliationMarkResult>>(
+    '/reports/bank-reconciliation/' + journalLineId + '/reconcile',
+    { data: { reason } }
+  );
+  return response.data.data;
+};
+
+export const getBankReconciliationTransactions = async (
+  params: ReconciliationScopeRequest & { viewType?: ReconciliationViewType }
+): Promise<ReconciliationTransactionsResponse> => {
+  const response = await apiClient.get<ApiResponse<ReconciliationTransactionsResponse>>(
+    '/reports/bank-reconciliation/transactions',
+    { params }
+  );
+  return response.data.data;
+};
+
+export const getBankReconciliationSummary = async (
+  params: ReconciliationScopeRequest
+): Promise<ReconciliationSummaryResponse> => {
+  const response = await apiClient.get<ApiResponse<ReconciliationSummaryResponse>>(
+    '/reports/bank-reconciliation/summary',
+    { params }
+  );
+  return response.data.data;
+};
+
+export const getBankReconciliationStatement = async (
+  params: ReconciliationScopeRequest
+): Promise<ReconciliationStatementResponse> => {
+  const response = await apiClient.get<ApiResponse<ReconciliationStatementResponse>>(
+    '/reports/bank-reconciliation/statement',
+    { params }
+  );
+  return response.data.data;
+};
+
+export const exportBankReconciliationPdf = async (
+  payload: ReconciliationPdfPayload
+): Promise<{ blob: Blob; filename: string }> => {
+  const response = await apiClient.post('/reports/bank-reconciliation/export/pdf', payload, {
+    responseType: 'blob',
+    timeout: 180000,
+  });
+  const disposition = String(response.headers['content-disposition'] ?? '');
+  const match = /filename="?([^";]+)"?/.exec(disposition);
+  return { blob: response.data as Blob, filename: match ? match[1] : 'bank-reconciliation.pdf' };
 };

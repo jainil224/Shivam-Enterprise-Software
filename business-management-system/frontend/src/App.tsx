@@ -39,6 +39,9 @@ import { ReportMastersPage } from './pages/ReportMastersPage';
 import { ReportBillBaseConfigPage } from './pages/ReportBillBaseConfigPage';
 import { ReportBillBaseResultsPage } from './pages/ReportBillBaseResultsPage';
 import { ReportBillBasePrintPage } from './pages/ReportBillBasePrintPage';
+import { BankReconciliationBookSelectionPage } from './pages/BankReconciliationBookSelectionPage';
+import { BankReconciliationPage } from './pages/BankReconciliationPage';
+import { BankReconciliationPrintPage } from './pages/BankReconciliationPrintPage';
 import { CompanyProvider } from './context/CompanyContext';
 import { UIModalProvider } from './context/UIModalContext';
 import { RequireCompanyContext } from './components/RequireCompanyContext';
@@ -497,6 +500,32 @@ export const App: React.FC = () => {
                 element={
                   <RequireCompanyContext>
                     <ReportBillBasePrintPage />
+                  </RequireCompanyContext>
+                }
+              />
+
+              {/* Phase 16 - Bank Reconciliation */}
+              <Route
+                path="/reports/bank-reconciliation"
+                element={
+                  <RequireCompanyContext>
+                    <BankReconciliationBookSelectionPage />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/reports/bank-reconciliation/:bankLedgerId/print"
+                element={
+                  <RequireCompanyContext>
+                    <BankReconciliationPrintPage />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/reports/bank-reconciliation/:bankLedgerId"
+                element={
+                  <RequireCompanyContext>
+                    <BankReconciliationPage />
                   </RequireCompanyContext>
                 }
               />

@@ -192,6 +192,16 @@ export const DASHBOARD_SHORTCUTS: ShortcutItem[] = [
     route: '/reports/sales-purchase/bill-base',
   },
   {
+    id: 'bank_reconciliation',
+    title: 'Bank Reconciliation',
+    description: 'Bank book reconciliation with clearing dates, statement balance and A4 statement PDF.',
+    category: 'Reports',
+    icon: Landmark,
+    plannedPhase: 'Phase 16 (Bank Reconciliation)',
+    implemented: true,
+    route: '/reports/bank-reconciliation',
+  },
+  {
     id: 'outstanding',
     title: 'Outstanding',
     description: 'Party-wise receivables (debtors) and payables (creditors) aging balances.',
@@ -358,6 +368,44 @@ export const MANUFACTURING_MENU_ITEMS: MenuItem[] = [
 // Only entries with a real route are selectable; the rest stay labelled as planned.
 // -------------------------------------------------------------
 export const REPORT_MENU_ITEMS: MenuItem[] = [
+  {
+    title: '1. Day Book Register',
+    description: 'Register reports built directly from posted vouchers and bank postings.',
+    children: [
+      {
+        title: '1. Sale/Pur Details',
+        description: 'Bill base sale and purchase register with grouping, print and Excel export.',
+        plannedPhase: 'Phase 15',
+        implemented: true,
+        route: '/reports/sales-purchase/bill-base',
+      },
+      {
+        title: '2. Account Details',
+        description: 'Ledger account wise posting register with opening and closing balances.',
+        plannedPhase: 'Phase 9',
+        implemented: false,
+      },
+      {
+        title: '3. Bank Book',
+        description: 'Bank book register with receipts, payments and running balance.',
+        plannedPhase: 'Phase 9',
+        implemented: false,
+      },
+      {
+        title: '4. Cash Book',
+        description: 'Cash book register with receipts, payments and running balance.',
+        plannedPhase: 'Phase 9',
+        implemented: false,
+      },
+      {
+        title: '5. Bank Reconciliation',
+        description: 'Reconcile real bank postings against the bank statement with clearing dates.',
+        plannedPhase: 'Phase 16',
+        implemented: true,
+        route: '/reports/bank-reconciliation',
+      },
+    ],
+  },
   {
     title: 'Final Reports',
     description: 'Final statutory and management reports built from posted documents.',

@@ -46,7 +46,8 @@ export const RootLayout: React.FC<RootLayoutProps> = ({ children }) => {
   // sheets are never pushed below the fold by the app chrome.
   const fullHeightRoute =
     location.pathname === '/reports/sales-purchase/bill-base' ||
-    location.pathname === '/reports/sales-purchase/bill-base/print';
+    location.pathname === '/reports/sales-purchase/bill-base/print' ||
+    location.pathname.startsWith('/reports/bank-reconciliation/');
 
   // -------------------------------------------------------------
   // Keyboard Navigation: F1, Alt+C, Alt+M, Alt+T, Alt+R, Alt+F, Esc

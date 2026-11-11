@@ -15,6 +15,7 @@ import purchaseOrderRoutes from './purchaseOrderRoutes.js';
 import debitNoteBookRoutes from './debitNoteBookRoutes.js';
 import debitNoteRoutes from './debitNoteRoutes.js';
 import reportRoutes from './reportRoutes.js';
+import bankReconciliationRoutes from './bankReconciliationRoutes.js';
 
 const router = Router();
 
@@ -56,5 +57,8 @@ router.use('/debit-notes', debitNoteRoutes);
 
 // Sales & Purchase Report - Bill Base (Phase 15)
 router.use('/reports', reportRoutes);
+
+// Bank Reconciliation (Phase 16)
+router.use('/reports/bank-reconciliation', bankReconciliationRoutes);
 
 export default router;

@@ -93,3 +93,24 @@ export function formatIndianMoney(value: Prisma.Decimal | string | number | null
 
   return `${negative ? '-' : ''}${grouped}.${decimalPart}`;
 }
+
+// Signed amounts are required by bank reconciliation: a positive value is a
+// debit balance, a negative value is a credit balance, and zero means nil.
+const SIGNED_MONEY_PATTERN = /^-?\d+(\.\d{1,2})?$/;
+
+/** Parses a required signed monetary input (debit positive, credit negative). */
+export function parseSignedMoney(raw: unknown, label: string): Prisma.Decimal {
+  if (raw === null || raw === undefined || (typeof raw === 'string' && raw.trim() === '')) {
+    throw new MoneyInputError(label + ' is required.');
+  }
+
+  const text = typeof raw === 'number' ? String(raw) : String(raw).trim();
+  const normalized = text.replace(/,/g, '');
+  if (!SIGNED_MONEY_PATTERN.test(normalized)) {
+    throw new MoneyInputError(
+      label + ' must be a number with at most 2 decimal places. Use a negative value for a credit balance.'
+    );
+  }
+
+  return new Prisma.Decimal(normalized).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+}

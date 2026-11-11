@@ -72,3 +72,30 @@
   word-break: break-word;
   vertical-align: middle;
 }
+
+/* Phase 16.1 - the bank reconciliation statement prints as an A4 portrait sheet.
+   Named so it cannot affect the packing-slip or report print pages. */
+@page bank-reco-statement {
+  size: A4 portrait;
+  margin: 10mm;
+}
+
+@media print {
+  .bank-reco-statement {
+    page: bank-reco-statement;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* Table headers must repeat on every printed page. */
+  .bank-reco-statement thead {
+    display: table-header-group;
+  }
+
+  .bank-reco-statement tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

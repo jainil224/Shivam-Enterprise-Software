@@ -35,30 +35,34 @@ model Company {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  financialYears     FinancialYear[]
-  ledgerAccounts     LedgerAccount[]
-  bankVouchers       BankVoucher[]
-  journalLines       JournalLine[]
-  voucherSequences   VoucherSequence[]
-  parties            Party[]
-  machines           Machine[]
-  operators          Operator[]
-  locations          Location[]
-  yarnQualities      YarnQuality[]
-  yarnGrades         YarnGrade[]
-  productionBooks    ProductionBook[]
-  productionReceives ProductionReceive[]
-  purchaseBills      PurchaseBill[]
-  debitNoteBooks     DebitNoteBook[]
-  debitNotes         DebitNote[]
-  reportColumnLayouts ReportColumnLayout[]
-  partyGroups        PartyGroup[]
-  areas              Area[]
-  brokers            Broker[]
-  transporters       Transporter[]
-  salespersons       Salesperson[]
-  itemGroups         ItemGroup[]
-  purchaseBooks      PurchaseBook[]
+  financialYears               FinancialYear[]
+  ledgerAccounts               LedgerAccount[]
+  bankVouchers                 BankVoucher[]
+  journalLines                 JournalLine[]
+  voucherSequences             VoucherSequence[]
+  parties                      Party[]
+  machines                     Machine[]
+  operators                    Operator[]
+  locations                    Location[]
+  yarnQualities                YarnQuality[]
+  yarnGrades                   YarnGrade[]
+  productionBooks              ProductionBook[]
+  productionReceives           ProductionReceive[]
+  purchaseBills                PurchaseBill[]
+  debitNoteBooks               DebitNoteBook[]
+  debitNotes                   DebitNote[]
+  reportColumnLayouts          ReportColumnLayout[]
+  bankReconciliationOpenings   BankReconciliationOpening[]
+  bankReconciliationMarks      BankReconciliationMark[]
+  bankReconciliationAudits     BankReconciliationAudit[]
+  bankReconciliationStatements BankReconciliationStatement[]
+  partyGroups                  PartyGroup[]
+  areas                        Area[]
+  brokers                      Broker[]
+  transporters                 Transporter[]
+  salespersons                 Salesperson[]
+  itemGroups                   ItemGroup[]
+  purchaseBooks                PurchaseBook[]
 
   items                Item[]
   salesOrders          SalesOrder[]
@@ -92,11 +96,15 @@ model FinancialYear {
   debitNotes         DebitNote[]
   purchaseBooks      PurchaseBook[]
 
-  salesOrders          SalesOrder[]
-  purchaseOrders       PurchaseOrder[]
-  orderStatusHistory   OrderStatusHistory[]
-  orderFulfilmentLinks OrderFulfilmentLink[]
-  orderSequences       OrderSequence[]
+  salesOrders                  SalesOrder[]
+  purchaseOrders               PurchaseOrder[]
+  orderStatusHistory           OrderStatusHistory[]
+  orderFulfilmentLinks         OrderFulfilmentLink[]
+  orderSequences               OrderSequence[]
+  bankReconciliationOpenings   BankReconciliationOpening[]
+  bankReconciliationMarks      BankReconciliationMark[]
+  bankReconciliationAudits     BankReconciliationAudit[]
+  bankReconciliationStatements BankReconciliationStatement[]
 
   @@unique([companyId, id])
   @@unique([companyId, yearName])
@@ -138,17 +146,17 @@ model Party {
   createdAt      DateTime    @default(now()) @map("created_at")
   updatedAt      DateTime    @updatedAt @map("updated_at")
 
-  company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  partyGroup         PartyGroup?         @relation(fields: [companyId, partyGroupId], references: [companyId, id], onDelete: Restrict)
-  area               Area?               @relation(fields: [companyId, areaId], references: [companyId, id], onDelete: Restrict)
-  productionReceives ProductionReceive[]
-  ledgerAccounts     LedgerAccount[]
-  bankVouchers       BankVoucher[]
-  purchaseBills      PurchaseBill[]      @relation("PurchaseBillParty")
-  deliveryPurchaseBills PurchaseBill[]   @relation("PurchaseBillDeliveryParty")
-  debitNotes         DebitNote[]
-  salesOrders        SalesOrder[]
-  purchaseOrders     PurchaseOrder[]
+  company               Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  partyGroup            PartyGroup?         @relation(fields: [companyId, partyGroupId], references: [companyId, id], onDelete: Restrict)
+  area                  Area?               @relation(fields: [companyId, areaId], references: [companyId, id], onDelete: Restrict)
+  productionReceives    ProductionReceive[]
+  ledgerAccounts        LedgerAccount[]
+  bankVouchers          BankVoucher[]
+  purchaseBills         PurchaseBill[]      @relation("PurchaseBillParty")
+  deliveryPurchaseBills PurchaseBill[]      @relation("PurchaseBillDeliveryParty")
+  debitNotes            DebitNote[]
+  salesOrders           SalesOrder[]
+  purchaseOrders        PurchaseOrder[]
 
   @@unique([companyId, id])
   @@unique([companyId, partyCode])
@@ -207,7 +215,7 @@ model Broker {
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
-  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   purchaseBills PurchaseBill[]
   debitNotes    DebitNote[]
 
@@ -227,7 +235,7 @@ model Transporter {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   purchaseBills PurchaseBill[]
   debitNotes    DebitNote[]
 
@@ -247,7 +255,7 @@ model Salesperson {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   purchaseBills PurchaseBill[]
   debitNotes    DebitNote[]
 
@@ -285,8 +293,8 @@ model PurchaseBook {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  financialYear FinancialYear @relation(fields: [companyId, financialYearId], references: [companyId, id], onDelete: Cascade)
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  financialYear FinancialYear  @relation(fields: [companyId, financialYearId], references: [companyId, id], onDelete: Cascade)
   purchaseBills PurchaseBill[]
 
   @@unique([companyId, id])
@@ -649,12 +657,16 @@ model LedgerAccount {
   createdAt         DateTime           @default(now()) @map("created_at")
   updatedAt         DateTime           @updatedAt @map("updated_at")
 
-  company                 Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  party                   Party?        @relation(fields: [companyId, partyId], references: [companyId, id], onDelete: Restrict)
-  journalLines            JournalLine[]
-  bankAccountVouchers     BankVoucher[] @relation("BankAccountVoucher")
-  counterpartyVouchers    BankVoucher[] @relation("CounterpartyVoucher")
-  debitNotesCreditAccount DebitNote[]   @relation("DebitNoteCreditAccount")
+  company                      Company                       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  party                        Party?                        @relation(fields: [companyId, partyId], references: [companyId, id], onDelete: Restrict)
+  journalLines                 JournalLine[]
+  bankAccountVouchers          BankVoucher[]                 @relation("BankAccountVoucher")
+  counterpartyVouchers         BankVoucher[]                 @relation("CounterpartyVoucher")
+  debitNotesCreditAccount      DebitNote[]                   @relation("DebitNoteCreditAccount")
+  bankReconciliationOpenings   BankReconciliationOpening[]   @relation("BankReconciliationOpeningLedger")
+  bankReconciliationMarks      BankReconciliationMark[]      @relation("BankReconciliationMarkLedger")
+  bankReconciliationAudits     BankReconciliationAudit[]     @relation("BankReconciliationAuditLedger")
+  bankReconciliationStatements BankReconciliationStatement[] @relation("BankReconciliationStatementLedger")
 
   @@unique([companyId, id])
   @@unique([companyId, accountCode])
@@ -721,12 +733,14 @@ model JournalLine {
   narration       String?
   createdAt       DateTime @default(now()) @map("created_at")
 
-  company       Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  financialYear FinancialYear @relation(fields: [companyId, financialYearId], references: [companyId, id], onDelete: Restrict)
-  voucher       BankVoucher?  @relation(fields: [voucherId], references: [id], onDelete: Cascade)
-  debitNote     DebitNote?    @relation(fields: [debitNoteId], references: [id], onDelete: Cascade)
-  ledgerAccount LedgerAccount @relation(fields: [companyId, ledgerAccountId], references: [companyId, id], onDelete: Restrict)
+  company                Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  financialYear          FinancialYear           @relation(fields: [companyId, financialYearId], references: [companyId, id], onDelete: Restrict)
+  voucher                BankVoucher?            @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  debitNote              DebitNote?              @relation(fields: [debitNoteId], references: [id], onDelete: Cascade)
+  ledgerAccount          LedgerAccount           @relation(fields: [companyId, ledgerAccountId], references: [companyId, id], onDelete: Restrict)
+  bankReconciliationMark BankReconciliationMark? @relation("BankReconciliationMarkLine")
 
+  @@unique([companyId, id])
   @@index([companyId, financialYearId, ledgerAccountId])
   @@index([companyId, voucherId])
   @@index([companyId, debitNoteId])
@@ -1419,4 +1433,123 @@ model ReportColumnLayout {
   @@unique([companyId, reportType, layoutName])
   @@index([companyId, reportType])
   @@map("report_column_layouts")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 16 - Bank Reconciliation
+// Reconciliation is metadata only: it never creates journal entries and never
+// changes a ledger balance. Clearing dates are stored against the real
+// bank-side JournalLine that an existing voucher already produced.
+// ---------------------------------------------------------------------------
+
+enum BankReconciliationAction {
+  SET_CLEARING_DATE
+  REMOVE_CLEARING_DATE
+  OPENING_BALANCE_SET
+  OPENING_BALANCE_ACKNOWLEDGED
+  STATEMENT_SAVED
+}
+
+enum BankReconciliationStatus {
+  DRAFT
+  BALANCED
+  UNBALANCED
+}
+
+model BankReconciliationOpening {
+  id                      String    @id @default(uuid())
+  companyId               String    @map("company_id")
+  financialYearId         String    @map("financial_year_id")
+  bankLedgerAccountId     String    @map("bank_ledger_account_id")
+  openingDate             DateTime  @map("opening_date")
+  openingStatementBalance Decimal   @map("opening_statement_balance") @db.Decimal(15, 2)
+  openingBookBalance      Decimal   @map("opening_book_balance") @db.Decimal(15, 2)
+  difference              Decimal   @default(0.00) @db.Decimal(15, 2)
+  isAcknowledged          Boolean   @default(false) @map("is_acknowledged")
+  acknowledgedAt          DateTime? @map("acknowledged_at")
+  createdBy               String?   @map("created_by")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  company           Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  financialYear     FinancialYear @relation(fields: [companyId, financialYearId], references: [companyId, id], onDelete: Restrict)
+  bankLedgerAccount LedgerAccount @relation("BankReconciliationOpeningLedger", fields: [companyId, bankLedgerAccountId], references: [companyId, id], onDelete: Restrict)
+
+  @@unique([companyId, financialYearId, bankLedgerAccountId])
+  @@index([companyId, bankLedgerAccountId])
+  @@map("bank_reconciliation_openings")
+}
+
+model BankReconciliationMark {
+  id                  String   @id @default(uuid())
+  companyId           String   @map("company_id")
+  financialYearId     String   @map("financial_year_id")
+  bankLedgerAccountId String   @map("bank_ledger_account_id")
+  bankJournalLineId   String   @map("bank_journal_line_id")
+  clearingDate        DateTime @map("clearing_date")
+  createdBy           String?  @map("created_by")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  company           Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  financialYear     FinancialYear             @relation(fields: [companyId, financialYearId], references: [companyId, id], onDelete: Restrict)
+  bankLedgerAccount LedgerAccount             @relation("BankReconciliationMarkLedger", fields: [companyId, bankLedgerAccountId], references: [companyId, id], onDelete: Restrict)
+  bankJournalLine   JournalLine               @relation("BankReconciliationMarkLine", fields: [companyId, bankJournalLineId], references: [companyId, id], onDelete: Cascade)
+  audits            BankReconciliationAudit[]
+
+  @@unique([companyId, bankJournalLineId])
+  @@index([companyId, financialYearId, bankLedgerAccountId])
+  @@map("bank_reconciliation_marks")
+}
+
+model BankReconciliationAudit {
+  id                   String                   @id @default(uuid())
+  companyId            String                   @map("company_id")
+  financialYearId      String                   @map("financial_year_id")
+  bankLedgerAccountId  String                   @map("bank_ledger_account_id")
+  reconciliationMarkId String?                  @map("reconciliation_mark_id")
+  bankJournalLineId    String?                  @map("bank_journal_line_id")
+  action               BankReconciliationAction
+  previousClearingDate DateTime?                @map("previous_clearing_date")
+  newClearingDate      DateTime?                @map("new_clearing_date")
+  changedBy            String?                  @map("changed_by")
+  reason               String?
+  changedAt            DateTime                 @default(now()) @map("changed_at")
+
+  company            Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  financialYear      FinancialYear           @relation(fields: [companyId, financialYearId], references: [companyId, id], onDelete: Restrict)
+  bankLedgerAccount  LedgerAccount           @relation("BankReconciliationAuditLedger", fields: [companyId, bankLedgerAccountId], references: [companyId, id], onDelete: Restrict)
+  reconciliationMark BankReconciliationMark? @relation(fields: [reconciliationMarkId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, financialYearId, bankLedgerAccountId, changedAt])
+  @@index([companyId, bankJournalLineId])
+  @@map("bank_reconciliation_audits")
+}
+
+model BankReconciliationStatement {
+  id                      String                   @id @default(uuid())
+  companyId               String                   @map("company_id")
+  financialYearId         String                   @map("financial_year_id")
+  bankLedgerAccountId     String                   @map("bank_ledger_account_id")
+  fromDate                DateTime                 @map("from_date")
+  toDate                  DateTime                 @map("to_date")
+  openingStatementBalance Decimal                  @map("opening_statement_balance") @db.Decimal(15, 2)
+  closingStatementBalance Decimal                  @map("closing_statement_balance") @db.Decimal(15, 2)
+  bookOpeningBalance      Decimal                  @map("book_opening_balance") @db.Decimal(15, 2)
+  bookClosingBalance      Decimal                  @map("book_closing_balance") @db.Decimal(15, 2)
+  unclearedPayments       Decimal                  @map("uncleared_payments") @db.Decimal(15, 2)
+  unclearedReceipts       Decimal                  @map("uncleared_receipts") @db.Decimal(15, 2)
+  calculatedBankBalance   Decimal                  @map("calculated_bank_balance") @db.Decimal(15, 2)
+  difference              Decimal                  @default(0.00) @db.Decimal(15, 2)
+  status                  BankReconciliationStatus @default(DRAFT)
+  createdBy               String?                  @map("created_by")
+  createdAt               DateTime                 @default(now()) @map("created_at")
+  updatedAt               DateTime                 @updatedAt @map("updated_at")
+
+  company           Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  financialYear     FinancialYear @relation(fields: [companyId, financialYearId], references: [companyId, id], onDelete: Restrict)
+  bankLedgerAccount LedgerAccount @relation("BankReconciliationStatementLedger", fields: [companyId, bankLedgerAccountId], references: [companyId, id], onDelete: Restrict)
+
+  @@index([companyId, financialYearId, bankLedgerAccountId, toDate])
+  @@map("bank_reconciliation_statements")
 }
