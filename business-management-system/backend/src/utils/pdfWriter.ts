@@ -63,7 +63,7 @@ export interface PdfBuildResult {
   layout: PdfLayout;
 }
 
-const PAGE_SIZES = {
+export const PAGE_SIZES = {
   portrait: { width: 595.28, height: 841.89 },
   landscape: { width: 841.89, height: 595.28 },
 } as const;
@@ -73,9 +73,9 @@ const MARGIN_RIGHT = 24;
 const MARGIN_TOP = 28;
 const MARGIN_BOTTOM = 30;
 const FOOTER_HEIGHT = 16;
-const COURIER_ADVANCE = 0.6; // Courier advance width in em units.
+export const COURIER_ADVANCE = 0.6; // Courier advance width in em units.
 
-function round3(value: number): number {
+export function round3(value: number): number {
   return Math.round(value * 1000) / 1000;
 }
 
@@ -121,7 +121,7 @@ const CHAR_REPLACEMENTS: Record<string, string> = {
  * either transliterated above or replaced with "?" - that is the documented
  * limitation: non-Latin scripts (Devanagari, Gujarati, CJK) are not embedded.
  */
-function winAnsi(value: string): string {
+export function winAnsi(value: string): string {
   let out = '';
   for (const char of String(value ?? '')) {
     const replacement = CHAR_REPLACEMENTS[char];
@@ -154,11 +154,11 @@ function escapePdfText(value: string): string {
   return out;
 }
 
-function textWidth(text: string, fontSize: number): number {
+export function textWidth(text: string, fontSize: number): number {
   return winAnsi(text).length * fontSize * COURIER_ADVANCE;
 }
 
-function fitText(text: string, maxChars: number): string {
+export function fitText(text: string, maxChars: number): string {
   const clean = winAnsi(text);
   if (clean.length <= maxChars) return clean;
   if (maxChars <= 3) return clean.slice(0, Math.max(0, maxChars));
@@ -225,7 +225,7 @@ export function computePdfLayout(columns: PdfColumn[], orientation: 'portrait' |
   };
 }
 
-interface TextOp {
+export interface TextOp {
   x: number;
   y: number;
   text: string;
@@ -241,7 +241,7 @@ interface TextOp {
   color?: [number, number, number];
 }
 
-interface RectOp {
+export interface RectOp {
   x: number;
   y: number;
   width: number;
@@ -250,12 +250,12 @@ interface RectOp {
   stroke?: boolean;
 }
 
-interface PageOps {
+export interface PageOps {
   texts: TextOp[];
   rects: RectOp[];
 }
 
-function wrapText(text: string, maxChars: number): string[] {
+export function wrapText(text: string, maxChars: number): string[] {
   const clean = winAnsi(text).trim();
   if (clean.length === 0) return [''];
   const words = clean.split(/\s+/);
@@ -288,7 +288,7 @@ function alignX(cellX: number, width: number, text: string, fontSize: number, al
   return cellX + 2;
 }
 
-function buildContentStream(ops: PageOps): string {
+export function buildContentStream(ops: PageOps): string {
   const parts: string[] = [];
   for (const rect of ops.rects) {
     if (rect.fill) {
@@ -496,52 +496,7 @@ export function buildPdf(options: PdfBuildOptions): PdfBuildResult {
     return ops;
   });
 
-  // Assemble the PDF object graph.
-  const objects: string[] = [];
-  const addObject = (body: string): number => {
-    objects.push(body);
-    return objects.length;
-  };
-
-  addObject('<< /Type /Catalog /Pages 2 0 R >>');
-  addObject('__PAGES_PLACEHOLDER__');
-  addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>');
-  addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>');
-  addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Oblique /Encoding /WinAnsiEncoding >>');
-  addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Courier-BoldOblique /Encoding /WinAnsiEncoding >>');
-
-  const kids: number[] = [];
-  for (const ops of rendered) {
-    const stream = buildContentStream(ops);
-    const pageNumber = addObject('__PAGE_PLACEHOLDER__');
-    const contentNumber = addObject('<< /Length ' + Buffer.byteLength(stream, 'latin1') + ' >>\nstream\n' + stream + '\nendstream');
-    objects[pageNumber - 1] =
-      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + round3(layout.pageWidth) + ' ' + round3(layout.pageHeight) + '] ' +
-      '/Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> /Contents ' + contentNumber + ' 0 R >>';
-    kids.push(pageNumber);
-  }
-  objects[1] = '<< /Type /Pages /Kids [' + kids.map((kid) => kid + ' 0 R').join(' ') + '] /Count ' + kids.length + ' >>';
-
-  const headerBuffer = Buffer.from('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n', 'latin1');
-  const chunks: Buffer[] = [headerBuffer];
-  const offsets: number[] = [];
-  let cursor = headerBuffer.length;
-  objects.forEach((body, objectIndex) => {
-    offsets.push(cursor);
-    const chunk = Buffer.from((objectIndex + 1) + ' 0 obj\n' + body + '\nendobj\n', 'latin1');
-    chunks.push(chunk);
-    cursor += chunk.length;
-  });
-
-  const xrefOffset = cursor;
-  let xref = 'xref\n0 ' + (objects.length + 1) + '\n0000000000 65535 f \n';
-  for (const offset of offsets) {
-    xref += String(offset).padStart(10, '0') + ' 00000 n \n';
-  }
-  xref += 'trailer\n<< /Size ' + (objects.length + 1) + ' /Root 1 0 R >>\nstartxref\n' + xrefOffset + '\n%%EOF\n';
-  chunks.push(Buffer.from(xref, 'latin1'));
-
-  return { buffer: Buffer.concat(chunks), pageCount: rendered.length, layout };
+  return { buffer: serializePdfPages(rendered, { width: layout.pageWidth, height: layout.pageHeight }), pageCount: rendered.length, layout };
 }
 
 // ---------------------------------------------------------------------------
@@ -582,6 +537,8 @@ export type StatementBlock =
       rows: string[][];
       emptyText?: string;
       total?: StatementTableTotal;
+      /** Final row aligned 1:1 to the table columns (e.g. two money totals). */
+      totalRow?: StatementCell[];
       size?: number;
     }
   | { type: 'spacer'; height?: number }
@@ -600,10 +557,23 @@ export interface StatementHeaderInfo {
   bankName?: string;
   /** Period line, printed centred beneath the title. */
   period?: string;
+  /** Optional company PAN, printed in the letterhead contact line. */
+  companyPan?: string;
+  /** Optional company phone, printed in the letterhead contact line. */
+  companyPhone?: string;
+  /** Optional company email, printed in the letterhead contact line. */
+  companyEmail?: string;
+  /** Ledger name line printed under the title in letterhead mode. */
+  ledgerName?: string;
 }
 
 export interface StatementBuildOptions {
   orientation: 'portrait' | 'landscape';
+  /**
+   * centered (default) keeps the boxed Phase 16.1 header untouched.
+   * letterhead prints a classic left/right company letterhead for ledgers.
+   */
+  headerMode?: 'centered' | 'letterhead';
   header: StatementHeaderInfo;
   blocks: StatementBlock[];
   generatedAt?: Date;
@@ -723,6 +693,7 @@ export function buildStatementPdf(options: StatementBuildOptions): StatementBuil
     const headerHeight = statementRowHeight(fontSize);
     const rowHeight = statementRowHeight(fontSize);
     const totalHeight = block.total ? statementRowHeight(fontSize) : 0;
+    const totalRowHeight = block.totalRow && block.totalRow.length > 0 ? statementRowHeight(fontSize) : 0;
     const columns =
       block.columns.length > 0
         ? block.columns
@@ -752,7 +723,7 @@ export function buildStatementPdf(options: StatementBuildOptions): StatementBuil
     };
 
     // Never strand a header at the foot of a page without a row and the total.
-    ensureSpace(headerHeight + rowHeight + totalHeight);
+    ensureSpace(headerHeight + rowHeight + totalHeight + totalRowHeight);
     drawHeader();
 
     if (block.rows.length === 0) {
@@ -794,6 +765,30 @@ export function buildStatementPdf(options: StatementBuildOptions): StatementBuil
       }
     }
 
+    if (block.totalRow && block.totalRow.length > 0) {
+      if (y - totalRowHeight < bodyBottom) {
+        newPage();
+        drawHeader();
+      }
+      frame(left, y, usableWidth, totalRowHeight);
+      columns.forEach((column, index) => {
+        if (index > 0) verticalRule(columnLeft(index), y, totalRowHeight);
+        const cell = block.totalRow![index];
+        drawText(
+          cell?.text ?? '',
+          columnLeft(index),
+          widths[index],
+          y,
+          totalRowHeight,
+          cell?.size ?? fontSize,
+          cell?.align ?? column.align,
+          true,
+          cell?.italic ?? false
+        );
+      });
+      y -= totalRowHeight;
+    }
+
     if (block.total) {
       if (y - totalHeight < bodyBottom) {
         newPage();
@@ -828,57 +823,138 @@ export function buildStatementPdf(options: StatementBuildOptions): StatementBuil
     }
   };
 
-  // --- Company header: boxed rows, exactly as the printed reference ----------
+  // --- Company header -------------------------------------------------------
   const header = options.header;
-  const nameHeight = statementRowHeight(13);
-  const yearHeight = statementRowHeight(8.5);
-  ensureSpace(nameHeight + yearHeight);
-  frame(left, y, usableWidth, nameHeight + yearHeight);
-  drawText(header.companyName, left, usableWidth, y, nameHeight, 13, 'center', true, true);
-  drawText(header.financialYear, left, usableWidth, y - nameHeight, yearHeight, 8.5, 'center', false, false);
-  y -= nameHeight + yearHeight;
+  const headerMode = options.headerMode ?? 'centered';
 
-  if (header.companyAddress) {
-    const addressHeight = statementRowHeight(8.5);
-    ensureSpace(addressHeight);
-    frame(left, y, usableWidth, addressHeight);
-    drawText(header.companyAddress, left, usableWidth, y, addressHeight, 8.5, 'center', false, false);
-    y -= addressHeight;
+  const freeText = (
+    text: string,
+    x: number,
+    baseline: number,
+    fontSize: number,
+    bold = false,
+    italic = false
+  ): void => {
+    if (text.length === 0) return;
+    ops.texts.push({ x, y: baseline, text: winAnsi(text), size: fontSize, bold, italic });
+  };
+
+  const rule = (): void => {
+    ops.rects.push({ x: left, y, width: usableWidth, height: 1, fill: STMT_BORDER_COLOR });
+  };
+
+  if (headerMode === 'letterhead') {
+    // Classic accounting letterhead: company block on the left, GSTIN on the
+    // right, a full-width rule, then the report identity centred.
+    const nameSize = 13;
+    let baseline = y - nameSize;
+    freeText(header.companyName, left + 2, baseline, nameSize, true);
+    const gstinText = 'GSTIN : ' + (header.companyGstin || 'Not recorded');
+    freeText(gstinText, left + usableWidth - textWidth(gstinText, 8.5) - 2, baseline, 8.5);
+    y = baseline - 7;
+
+    const bodySize = 8.5;
+    const capacity = Math.max(10, Math.floor((usableWidth - 6) / (bodySize * COURIER_ADVANCE)));
+
+    if (header.companyAddress) {
+      for (const line of wrapText(header.companyAddress, capacity)) {
+        y -= bodySize + 2;
+        freeText(line, left + 2, y, bodySize);
+      }
+    }
+
+    const contact: string[] = [];
+    if (header.companyPhone) contact.push('Phone: ' + header.companyPhone);
+    if (header.companyEmail) contact.push('Email: ' + header.companyEmail);
+    if (header.companyPan) contact.push('PAN: ' + header.companyPan);
+    if (contact.length > 0) {
+      y -= bodySize + 2;
+      freeText(fitText(winAnsi(contact.join('   ')), capacity), left + 2, y, bodySize);
+    }
+
+    if (header.financialYear) {
+      y -= bodySize + 2;
+      freeText('Financial Year: ' + header.financialYear, left + 2, y, bodySize);
+    }
+
+    y -= 7;
+    rule();
+    y -= 12;
+
+    const titleSize = 11;
+    const titleWidth = textWidth(header.title, titleSize);
+    y -= titleSize;
+    freeText(header.title, left + Math.max(0, (usableWidth - titleWidth) / 2), y, titleSize, true, true);
+
+    if (header.ledgerName) {
+      const ledgerSize = 9.5;
+      const ledgerWidth = textWidth(header.ledgerName, ledgerSize);
+      y -= ledgerSize + 3;
+      freeText(header.ledgerName, left + Math.max(0, (usableWidth - ledgerWidth) / 2), y, ledgerSize, true);
+    }
+
+    if (header.period) {
+      const periodSize = 8.5;
+      const periodWidth = textWidth(header.period, periodSize);
+      y -= periodSize + 3;
+      freeText(header.period, left + Math.max(0, (usableWidth - periodWidth) / 2), y, periodSize);
+    }
+
+    y -= 9;
+    rule();
+    y -= 10;
+  } else {
+    const header = options.header;
+    const nameHeight = statementRowHeight(13);
+    const yearHeight = statementRowHeight(8.5);
+    ensureSpace(nameHeight + yearHeight);
+    frame(left, y, usableWidth, nameHeight + yearHeight);
+    drawText(header.companyName, left, usableWidth, y, nameHeight, 13, 'center', true, true);
+    drawText(header.financialYear, left, usableWidth, y - nameHeight, yearHeight, 8.5, 'center', false, false);
+    y -= nameHeight + yearHeight;
+
+    if (header.companyAddress) {
+      const addressHeight = statementRowHeight(8.5);
+      ensureSpace(addressHeight);
+      frame(left, y, usableWidth, addressHeight);
+      drawText(header.companyAddress, left, usableWidth, y, addressHeight, 8.5, 'center', false, false);
+      y -= addressHeight;
+    }
+
+    const gstinHeight = statementRowHeight(8.5);
+    ensureSpace(gstinHeight);
+    frame(left, y, usableWidth, gstinHeight);
+    drawText(
+      'GSTIN: ' + (header.companyGstin || 'Not recorded'),
+      left,
+      usableWidth,
+      y,
+      gstinHeight,
+      8.5,
+      'left',
+      false,
+      false
+    );
+    y -= gstinHeight;
+
+    if (header.bankName) {
+      const bankHeight = statementRowHeight(9.5);
+      ensureSpace(bankHeight);
+      frame(left, y, usableWidth, bankHeight);
+      drawText('BANK : ' + header.bankName, left, usableWidth, y, bankHeight, 9.5, 'center', true, false);
+      y -= bankHeight;
+    }
+
+    const titleHeight = statementRowHeight(10);
+    const periodHeight = header.period ? statementRowHeight(8.5) : 0;
+    ensureSpace(titleHeight + periodHeight);
+    frame(left, y, usableWidth, titleHeight + periodHeight);
+    drawText(header.title, left, usableWidth, y, titleHeight, 10, 'center', true, true);
+    if (header.period) {
+      drawText(header.period, left, usableWidth, y - titleHeight, periodHeight, 8.5, 'center', false, false);
+    }
+    y -= titleHeight + periodHeight;
   }
-
-  const gstinHeight = statementRowHeight(8.5);
-  ensureSpace(gstinHeight);
-  frame(left, y, usableWidth, gstinHeight);
-  drawText(
-    'GSTIN: ' + (header.companyGstin || 'Not recorded'),
-    left,
-    usableWidth,
-    y,
-    gstinHeight,
-    8.5,
-    'left',
-    false,
-    false
-  );
-  y -= gstinHeight;
-
-  if (header.bankName) {
-    const bankHeight = statementRowHeight(9.5);
-    ensureSpace(bankHeight);
-    frame(left, y, usableWidth, bankHeight);
-    drawText('BANK : ' + header.bankName, left, usableWidth, y, bankHeight, 9.5, 'center', true, false);
-    y -= bankHeight;
-  }
-
-  const titleHeight = statementRowHeight(10);
-  const periodHeight = header.period ? statementRowHeight(8.5) : 0;
-  ensureSpace(titleHeight + periodHeight);
-  frame(left, y, usableWidth, titleHeight + periodHeight);
-  drawText(header.title, left, usableWidth, y, titleHeight, 10, 'center', true, true);
-  if (header.period) {
-    drawText(header.period, left, usableWidth, y - titleHeight, periodHeight, 8.5, 'center', false, false);
-  }
-  y -= titleHeight + periodHeight;
 
   // --- Body blocks ----------------------------------------------------------
   for (const block of options.blocks) {
@@ -969,6 +1045,15 @@ export function buildStatementPdf(options: StatementBuildOptions): StatementBuil
     });
   });
 
+  return { buffer: serializePdfPages(pages, size), pageCount: pages.length };
+}
+
+/**
+ * Serialises finished page operations into a genuine PDF 1.4 byte stream.
+ * Every statement builder shares this single writer, so exactly one place knows
+ * the PDF object graph.
+ */
+export function serializePdfPages(pages: PageOps[], size: { width: number; height: number }): Buffer {
   // --- Object graph ---------------------------------------------------------
   const objects: string[] = [];
   const addObject = (body: string): number => {
@@ -1019,5 +1104,5 @@ export function buildStatementPdf(options: StatementBuildOptions): StatementBuil
   xref += 'trailer\n<< /Size ' + (objects.length + 1) + ' /Root 1 0 R >>\nstartxref\n' + xrefOffset + '\n%%EOF\n';
   chunks.push(Buffer.from(xref, 'latin1'));
 
-  return { buffer: Buffer.concat(chunks), pageCount: pages.length };
+  return Buffer.concat(chunks);
 }

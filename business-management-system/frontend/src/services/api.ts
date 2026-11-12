@@ -73,6 +73,16 @@ import type {
   ReconciliationViewType,
 } from '../types/bankReconciliation';
 
+import type {
+  AccountLedgerOptions,
+  AccountLedgerReportResult,
+  AccountLedgerRunRequest,
+  BankBookOptions,
+  BankBookReportResult,
+  BankBookRunRequest,
+  BankBookSavedReportRecord,
+} from '../types/ledgerReports';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export const apiClient = axios.create({
@@ -1661,4 +1671,129 @@ export const exportBankReconciliationPdf = async (
   const disposition = String(response.headers['content-disposition'] ?? '');
   const match = /filename="?([^";]+)"?/.exec(disposition);
   return { blob: response.data as Blob, filename: match ? match[1] : 'bank-reconciliation.pdf' };
+};
+
+
+// -------------------------------------------------------------
+// Phase 17 - Bank Book & Account Ledger reports
+// -------------------------------------------------------------
+const readDownloadName = (disposition: unknown, fallback: string): string => {
+  const match = /filename="?([^";]+)"?/.exec(String(disposition ?? ''));
+  return match ? match[1] : fallback;
+};
+
+export const getBankBookOptions = async (): Promise<BankBookOptions> => {
+  const response = await apiClient.get<ApiResponse<BankBookOptions>>('/reports/bank-book/options');
+  return response.data.data;
+};
+
+export const runBankBook = async (payload: BankBookRunRequest): Promise<BankBookReportResult> => {
+  const response = await apiClient.post<ApiResponse<BankBookReportResult>>(
+    '/reports/bank-book/run',
+    payload,
+    { timeout: 60000 }
+  );
+  return response.data.data;
+};
+
+export const exportBankBookPdf = async (
+  payload: BankBookRunRequest & { pdfOrientation?: 'portrait' | 'landscape' }
+): Promise<{ blob: Blob; filename: string }> => {
+  const response = await apiClient.post('/reports/bank-book/export/pdf', payload, {
+    responseType: 'blob',
+    timeout: 180000,
+  });
+  return {
+    blob: response.data as Blob,
+    filename: readDownloadName(response.headers['content-disposition'], 'bank-book.pdf'),
+  };
+};
+
+export const exportBankBookXlsx = async (
+  payload: BankBookRunRequest
+): Promise<{ blob: Blob; filename: string }> => {
+  const response = await apiClient.post('/reports/bank-book/export', payload, {
+    responseType: 'blob',
+    timeout: 180000,
+  });
+  return {
+    blob: response.data as Blob,
+    filename: readDownloadName(response.headers['content-disposition'], 'bank-book.xlsx'),
+  };
+};
+
+export const getBankBookSavedReports = async (): Promise<BankBookSavedReportRecord[]> => {
+  const response = await apiClient.get<ApiResponse<BankBookSavedReportRecord[]>>(
+    '/reports/bank-book/saved'
+  );
+  return response.data.data;
+};
+
+export const createBankBookSavedReport = async (
+  payload: Record<string, unknown>
+): Promise<BankBookSavedReportRecord> => {
+  const response = await apiClient.post<ApiResponse<BankBookSavedReportRecord>>(
+    '/reports/bank-book/saved',
+    payload
+  );
+  return response.data.data;
+};
+
+export const updateBankBookSavedReport = async (
+  id: string,
+  payload: Record<string, unknown>
+): Promise<BankBookSavedReportRecord> => {
+  const response = await apiClient.put<ApiResponse<BankBookSavedReportRecord>>(
+    '/reports/bank-book/saved/' + id,
+    payload
+  );
+  return response.data.data;
+};
+
+export const deleteBankBookSavedReport = async (id: string): Promise<void> => {
+  await apiClient.delete('/reports/bank-book/saved/' + id);
+};
+
+export const getAccountLedgerOptions = async (): Promise<AccountLedgerOptions> => {
+  const response = await apiClient.get<ApiResponse<AccountLedgerOptions>>(
+    '/reports/account-ledger/options'
+  );
+  return response.data.data;
+};
+
+export const runAccountLedger = async (
+  payload: AccountLedgerRunRequest
+): Promise<AccountLedgerReportResult> => {
+  const response = await apiClient.post<ApiResponse<AccountLedgerReportResult>>(
+    '/reports/account-ledger/run',
+    payload,
+    { timeout: 60000 }
+  );
+  return response.data.data;
+};
+
+export const exportAccountLedgerPdf = async (
+  payload: AccountLedgerRunRequest
+): Promise<{ blob: Blob; filename: string }> => {
+  const response = await apiClient.post('/reports/account-ledger/export/pdf', payload, {
+    responseType: 'blob',
+    timeout: 180000,
+  });
+  return {
+    blob: response.data as Blob,
+    filename: readDownloadName(response.headers['content-disposition'], 'account-ledger.pdf'),
+  };
+};
+
+export const exportAccountLedgerXlsx = async (
+  payload: AccountLedgerRunRequest
+): Promise<{ blob: Blob; filename: string }> => {
+  const response = await apiClient.post('/reports/account-ledger/export', payload, {
+    responseType: 'blob',
+    timeout: 180000,
+  });
+  return {
+    blob: response.data as Blob,
+    filename: readDownloadName(response.headers['content-disposition'], 'account-ledger.xlsx'),
+  };
 };

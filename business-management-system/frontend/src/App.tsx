@@ -42,6 +42,13 @@ import { ReportBillBasePrintPage } from './pages/ReportBillBasePrintPage';
 import { BankReconciliationBookSelectionPage } from './pages/BankReconciliationBookSelectionPage';
 import { BankReconciliationPage } from './pages/BankReconciliationPage';
 import { BankReconciliationPrintPage } from './pages/BankReconciliationPrintPage';
+import { BankBookSelectionPage } from './pages/BankBookSelectionPage';
+import { BankBookConfigPage } from './pages/BankBookConfigPage';
+import { BankBookResultsPage } from './pages/BankBookResultsPage';
+import { BankBookPrintPage } from './pages/BankBookPrintPage';
+import { AccountLedgerSelectionPage } from './pages/AccountLedgerSelectionPage';
+import { AccountLedgerPage } from './pages/AccountLedgerPage';
+import { AccountLedgerPrintPage } from './pages/AccountLedgerPrintPage';
 import { CompanyProvider } from './context/CompanyContext';
 import { UIModalProvider } from './context/UIModalContext';
 import { RequireCompanyContext } from './components/RequireCompanyContext';
@@ -530,6 +537,71 @@ export const App: React.FC = () => {
                 }
               />
 
+              {/* Phase 17 - Bank Book & Account Ledger reports */}
+              <Route
+                path="/reports/bank-book"
+                element={
+                  <RequireCompanyContext>
+                    <BankBookSelectionPage />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/reports/bank-book/config"
+                element={
+                  <RequireCompanyContext>
+                    <BankBookConfigPage />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/reports/bank-book/results"
+                element={
+                  <RequireCompanyContext>
+                    <BankBookResultsPage />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/reports/bank-book/:ledgerId/print"
+                element={
+                  <RequireCompanyContext>
+                    <BankBookPrintPage />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/reports/bank-book/:ledgerId"
+                element={
+                  <RequireCompanyContext>
+                    <BankBookResultsPage />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/reports/account-ledger"
+                element={
+                  <RequireCompanyContext>
+                    <AccountLedgerSelectionPage />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/reports/account-ledger/:ledgerId/print"
+                element={
+                  <RequireCompanyContext>
+                    <AccountLedgerPrintPage />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/reports/account-ledger/:ledgerId"
+                element={
+                  <RequireCompanyContext>
+                    <AccountLedgerPage />
+                  </RequireCompanyContext>
+                }
+              />
               {/* Technical System Status & Health */}
               <Route path="/system-status" element={<WelcomePage />} />
 

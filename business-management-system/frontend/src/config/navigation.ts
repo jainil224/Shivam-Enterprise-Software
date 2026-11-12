@@ -382,14 +382,16 @@ export const REPORT_MENU_ITEMS: MenuItem[] = [
       {
         title: '2. Account Details',
         description: 'Ledger account wise posting register with opening and closing balances.',
-        plannedPhase: 'Phase 9',
-        implemented: false,
+        plannedPhase: 'Phase 17',
+        implemented: true,
+        route: '/reports/account-ledger',
       },
       {
         title: '3. Bank Book',
         description: 'Bank book register with receipts, payments and running balance.',
-        plannedPhase: 'Phase 9',
-        implemented: false,
+        plannedPhase: 'Phase 17',
+        implemented: true,
+        route: '/reports/bank-book',
       },
       {
         title: '4. Cash Book',

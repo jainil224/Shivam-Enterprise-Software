@@ -12,6 +12,22 @@ import {
   deleteReportColumnLayout,
   setDefaultReportColumnLayout,
 } from '../controllers/reportController.js';
+import {
+  getBankBookOptions,
+  runBankBook,
+  exportBankBookXlsx,
+  exportBankBookPdf,
+  listBankBookSavedReports,
+  createBankBookSavedReport,
+  updateBankBookSavedReport,
+  deleteBankBookSavedReport,
+} from '../controllers/bankBookController.js';
+import {
+  getAccountLedgerOptions,
+  runAccountLedger,
+  exportAccountLedgerXlsx,
+  exportAccountLedgerPdf,
+} from '../controllers/accountLedgerController.js';
 
 const router = Router();
 
@@ -29,5 +45,21 @@ router.post('/column-layouts', createReportColumnLayout);
 router.put('/column-layouts/:id', updateReportColumnLayout);
 router.delete('/column-layouts/:id', deleteReportColumnLayout);
 router.post('/column-layouts/:id/default', setDefaultReportColumnLayout);
+
+// Phase 17 - Bank Book report (read-only)
+router.get('/bank-book/options', getBankBookOptions);
+router.post('/bank-book/run', runBankBook);
+router.post('/bank-book/export', exportBankBookXlsx);
+router.post('/bank-book/export/pdf', exportBankBookPdf);
+router.get('/bank-book/saved', listBankBookSavedReports);
+router.post('/bank-book/saved', createBankBookSavedReport);
+router.put('/bank-book/saved/:id', updateBankBookSavedReport);
+router.delete('/bank-book/saved/:id', deleteBankBookSavedReport);
+
+// Phase 17 - Account Ledger report (read-only)
+router.get('/account-ledger/options', getAccountLedgerOptions);
+router.post('/account-ledger/run', runAccountLedger);
+router.post('/account-ledger/export', exportAccountLedgerXlsx);
+router.post('/account-ledger/export/pdf', exportAccountLedgerPdf);
 
 export default router;

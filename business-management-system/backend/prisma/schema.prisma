@@ -52,6 +52,7 @@ model Company {
   debitNoteBooks               DebitNoteBook[]
   debitNotes                   DebitNote[]
   reportColumnLayouts          ReportColumnLayout[]
+  bankBookSavedReports         BankBookSavedReport[]
   bankReconciliationOpenings   BankReconciliationOpening[]
   bankReconciliationMarks      BankReconciliationMark[]
   bankReconciliationAudits     BankReconciliationAudit[]
@@ -85,16 +86,17 @@ model FinancialYear {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  productionBooks    ProductionBook[]
-  productionReceives ProductionReceive[]
-  purchaseBills      PurchaseBill[]
-  bankVouchers       BankVoucher[]
-  journalLines       JournalLine[]
-  voucherSequences   VoucherSequence[]
-  debitNoteBooks     DebitNoteBook[]
-  debitNotes         DebitNote[]
-  purchaseBooks      PurchaseBook[]
+  company              Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  productionBooks      ProductionBook[]
+  productionReceives   ProductionReceive[]
+  purchaseBills        PurchaseBill[]
+  bankVouchers         BankVoucher[]
+  journalLines         JournalLine[]
+  voucherSequences     VoucherSequence[]
+  debitNoteBooks       DebitNoteBook[]
+  debitNotes           DebitNote[]
+  purchaseBooks        PurchaseBook[]
+  bankBookSavedReports BankBookSavedReport[]
 
   salesOrders                  SalesOrder[]
   purchaseOrders               PurchaseOrder[]
@@ -178,8 +180,9 @@ model PartyGroup {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  parties Party[]
+  company              Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parties              Party[]
+  bankBookSavedReports BankBookSavedReport[]
 
   @@unique([companyId, id])
   @@unique([companyId, groupName])
@@ -667,6 +670,7 @@ model LedgerAccount {
   bankReconciliationMarks      BankReconciliationMark[]      @relation("BankReconciliationMarkLedger")
   bankReconciliationAudits     BankReconciliationAudit[]     @relation("BankReconciliationAuditLedger")
   bankReconciliationStatements BankReconciliationStatement[] @relation("BankReconciliationStatementLedger")
+  bankBookSavedReports         BankBookSavedReport[]         @relation("BankBookSavedReportLedger")
 
   @@unique([companyId, id])
   @@unique([companyId, accountCode])
@@ -1552,4 +1556,44 @@ model BankReconciliationStatement {
 
   @@index([companyId, financialYearId, bankLedgerAccountId, toDate])
   @@map("bank_reconciliation_statements")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 17 - Bank Book & Account Ledger reports.
+// Saved report preferences only. No accounting data is stored or duplicated:
+// both reports read the existing posted JournalLine rows.
+// ---------------------------------------------------------------------------
+
+enum BankBookDetailMode {
+  DETAIL
+  SUMMARY
+}
+
+model BankBookSavedReport {
+  id                  String             @id @default(uuid())
+  companyId           String             @map("company_id")
+  financialYearId     String             @map("financial_year_id")
+  reportName          String             @map("report_name")
+  bankLedgerAccountId String             @map("bank_ledger_account_id")
+  detailMode          BankBookDetailMode @default(DETAIL) @map("detail_mode")
+  reportType          String             @default("DAILY") @map("report_type")
+  filterField         String?            @map("filter_field")
+  filterText          String?            @map("filter_text")
+  partyGroupId        String?            @map("party_group_id")
+  fromDate            DateTime?          @map("from_date")
+  toDate              DateTime?          @map("to_date")
+  columns             Json?
+  isDefault           Boolean            @default(false) @map("is_default")
+  createdBy           String?            @map("created_by")
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
+
+  company           Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  financialYear     FinancialYear @relation(fields: [companyId, financialYearId], references: [companyId, id], onDelete: Restrict)
+  bankLedgerAccount LedgerAccount @relation("BankBookSavedReportLedger", fields: [companyId, bankLedgerAccountId], references: [companyId, id], onDelete: Restrict)
+  partyGroup        PartyGroup?   @relation(fields: [companyId, partyGroupId], references: [companyId, id], onDelete: Restrict)
+
+  @@unique([companyId, reportName])
+  @@index([companyId, bankLedgerAccountId])
+  @@map("bank_book_saved_reports")
 }

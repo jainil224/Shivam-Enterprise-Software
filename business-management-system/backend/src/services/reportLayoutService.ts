@@ -8,6 +8,11 @@ import {
   ReportColumnLayoutRow,
 } from '../repositories/reportLayoutRepository.js';
 import { REPORT_COLUMNS, REQUIRED_COLUMNS } from './reportService.js';
+import {
+  ACCOUNT_LEDGER_COLUMNS,
+  BANK_BOOK_DETAIL_COLUMNS,
+  BANK_BOOK_SUMMARY_COLUMNS,
+} from '../types/ledgerReportTypes.js';
 import type { ReportColumnLayout, ReportColumnLayoutInput } from '../types/reportTypes.js';
 
 type LayoutError = Error & { statusCode: number };
@@ -26,8 +31,40 @@ function readColumnArray(value: Prisma.JsonValue): string[] {
   return value.filter((entry): entry is string => typeof entry === 'string');
 }
 
-function catalogueKeys(): Set<string> {
-  return new Set(REPORT_COLUMNS.map((column) => column.key));
+// Phase 17 - every report type owns its own column catalogue. A layout saved
+// for one report can never leak columns into another, and an unknown report
+// type falls back to the Bill Base catalogue exactly as before.
+interface ReportCatalogue {
+  columns: Array<{ key: string; label: string }>;
+  required: string[];
+}
+
+function requiredOf(columns: Array<{ key: string; required?: boolean }>): string[] {
+  return columns.filter((column) => column.required === true).map((column) => column.key);
+}
+
+const CATALOGUES: Record<string, ReportCatalogue> = {
+  BILL_BASE: { columns: REPORT_COLUMNS, required: REQUIRED_COLUMNS },
+  BANK_BOOK: {
+    columns: BANK_BOOK_DETAIL_COLUMNS,
+    required: requiredOf(BANK_BOOK_DETAIL_COLUMNS),
+  },
+  BANK_BOOK_SUMMARY: {
+    columns: BANK_BOOK_SUMMARY_COLUMNS,
+    required: requiredOf(BANK_BOOK_SUMMARY_COLUMNS),
+  },
+  ACCOUNT_LEDGER: {
+    columns: ACCOUNT_LEDGER_COLUMNS,
+    required: requiredOf(ACCOUNT_LEDGER_COLUMNS),
+  },
+};
+
+function catalogueFor(reportType: string): ReportCatalogue {
+  return CATALOGUES[reportType] ?? CATALOGUES.BILL_BASE;
+}
+
+function catalogueKeys(reportType: string): Set<string> {
+  return new Set(catalogueFor(reportType).columns.map((column) => column.key));
 }
 
 /**
@@ -35,11 +72,12 @@ function catalogueKeys(): Set<string> {
  * catalogue, required columns must be present, duplicates are removed and the
  * caller supplied order is preserved.
  */
-function validateColumns(input: unknown, label: string): string[] {
+function validateColumns(input: unknown, label: string, reportType: string): string[] {
   if (!Array.isArray(input) || input.length === 0) {
     throw layoutError(label + ' must be a non-empty array of column ids.', 400);
   }
-  const available = catalogueKeys();
+  const catalogue = catalogueFor(reportType);
+  const available = catalogueKeys(reportType);
   const columns: string[] = [];
   const unknown: string[] = [];
   for (const entry of input) {
@@ -57,11 +95,13 @@ function validateColumns(input: unknown, label: string): string[] {
   if (columns.length === 0) {
     throw layoutError('At least one valid column is required.', 400);
   }
-  const missing = REQUIRED_COLUMNS.filter((key) => !columns.includes(key));
+  const missing = catalogue.required.filter((key) => !columns.includes(key));
   if (missing.length > 0) {
     throw layoutError(
       'Required column(s) cannot be removed: ' +
-        missing.map((key) => REPORT_COLUMNS.find((column) => column.key === key)?.label ?? key).join(', ') +
+        missing
+          .map((key) => catalogue.columns.find((column) => column.key === key)?.label ?? key)
+          .join(', ') +
         '.',
       400
     );
@@ -84,7 +124,8 @@ function resolveReportType(input: unknown): string {
 }
 
 function toLayout(row: ReportColumnLayoutRow): ReportColumnLayout {
-  const available = catalogueKeys();
+  const catalogue = catalogueFor(row.reportType);
+  const available = catalogueKeys(row.reportType);
   const selected = readColumnArray(row.selectedColumns);
   const order = readColumnArray(row.columnOrder);
   const stored = order.length > 0 ? order : selected;
@@ -97,7 +138,7 @@ function toLayout(row: ReportColumnLayoutRow): ReportColumnLayout {
     }
     if (!columns.includes(key)) columns.push(key);
   }
-  for (const key of REQUIRED_COLUMNS) {
+  for (const key of catalogue.required) {
     if (!columns.includes(key)) columns.push(key);
   }
   return {
@@ -135,7 +176,7 @@ export class ReportLayoutService {
   async create(companyId: string, input: ReportColumnLayoutInput): Promise<ReportColumnLayout> {
     const reportType = resolveReportType(input?.reportType);
     const name = validateName(input?.name);
-    const columns = validateColumns(input?.columns, 'columns');
+    const columns = validateColumns(input?.columns, 'columns', reportType);
 
     const existing = await reportLayoutRepository.findByName(companyId, reportType, name);
     if (existing) throw layoutError('A layout named "' + name + '" already exists for this company.', 409);
@@ -181,7 +222,7 @@ export class ReportLayoutService {
     const columns =
       input?.columns === undefined
         ? toLayout(current).columns
-        : validateColumns(input.columns, 'columns');
+        : validateColumns(input.columns, 'columns', reportType);
 
     try {
       const row = await reportLayoutRepository.update(layoutId, {

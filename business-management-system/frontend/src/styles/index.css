@@ -99,3 +99,94 @@
     page-break-inside: avoid;
   }
 }
+
+/* Phase 17 - Bank Book and Account Ledger report sheets.
+   Named pages keep these A4 rules away from the packing slip and Phase 16. */
+@page ledger-report-portrait {
+  size: A4 portrait;
+  margin: 10mm;
+}
+
+@page ledger-report-landscape {
+  size: A4 landscape;
+  margin: 8mm;
+}
+
+/* Account Ledger print page: the sheet carries its own 12pt inset. */
+@page account-ledger-print {
+  size: A4 portrait;
+  margin: 0;
+}
+
+.ledger-sheet {
+  box-sizing: border-box;
+  background: #ffffff;
+  color: #000000;
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger-sheet-portrait {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 10mm;
+}
+
+.ledger-sheet-landscape {
+  width: 297mm;
+  min-height: 210mm;
+  padding: 8mm;
+}
+
+@media print {
+  .ledger-sheet-portrait {
+    page: ledger-report-portrait;
+    width: 100% !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .ledger-sheet-landscape {
+    page: ledger-report-landscape;
+    width: 100% !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* One continuous table in the real print flow; the header repeats on every page. */
+  .ledger-print-flow thead {
+    display: table-header-group;
+  }
+
+  .ledger-print-flow tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  /* Phase 17.1 - every Account Ledger preview sheet prints as its own A4 page,
+     so the printed document matches the on-screen sheet and the PDF. */
+  .ledger-sheet-print {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .ledger-sheet-print:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  /* The Account Ledger sheet is measured against the real A4 page, so it prints
+     with no page margin and keeps its exact 210 x 297 mm geometry. */
+  .account-ledger-sheet {
+    page: account-ledger-print;
+    width: 210mm !important;
+    height: 297mm !important;
+    min-height: 0 !important;
+    padding: 12pt !important;
+    margin: 0 !important;
+    overflow: hidden;
+    box-shadow: none !important;
+  }
+}

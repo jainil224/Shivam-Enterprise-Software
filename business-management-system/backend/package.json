@@ -21,7 +21,9 @@
     "test:phase15.2": "tsx scripts/phase15.2-report-test.ts",
     "test:phase15.1:perf": "tsx scripts/phase15-1-large-dataset.ts",
     "test:phase16": "tsx scripts/phase16-bank-reconciliation-test.ts",
-    "test:phase16.1": "tsx scripts/phase16.1-statement-pdf-test.ts"
+    "test:phase16.1": "tsx scripts/phase16.1-statement-pdf-test.ts",
+    "test:phase17": "tsx scripts/phase17-ledger-reports-test.ts",
+    "test:phase17.1": "tsx scripts/phase17.1-ledger-print-test.ts"
   },
   "keywords": [
     "bms",
