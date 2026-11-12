@@ -33,8 +33,12 @@ const netAdjustmentOf = (rows: ReceiptAdjustmentPayload[] | undefined): number =
     0
   );
 
+export interface OutstandingAppliedAllocation extends ReceiptAllocationPayload {
+  billNumber: string;
+}
+
 export interface OutstandingApplyResult {
-  allocations: ReceiptAllocationPayload[];
+  allocations: OutstandingAppliedAllocation[];
   adjustments: ReceiptAdjustmentPayload[];
   allocatedTotal: string;
   chequeBalance: string;
@@ -215,6 +219,7 @@ export const OutstandingAdjustmentDialog: React.FC<OutstandingAdjustmentDialogPr
         allocations: validated.allocations.map((row) => ({
           purchaseBillId: row.purchaseBillId,
           allocatedAmount: row.allocatedAmount,
+          billNumber: row.billNumber,
         })),
         adjustments,
         allocatedTotal: validated.allocatedTotal,

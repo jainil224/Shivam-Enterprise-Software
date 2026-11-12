@@ -43,6 +43,11 @@ import {
   OutstandingApplyResult,
 } from '../components/receipt/OutstandingAdjustmentDialog';
 import { ReceiptPartyLookupDialog } from '../components/receipt/ReceiptPartyLookupDialog';
+import {
+  resolveDescriptionAfterAllocation,
+  resolveDescriptionAfterManualEdit,
+  resolveDescriptionOnLoad,
+} from '../utils/receiptDescription';
 
 const INITIAL_ROWS = 30;
 const EXTRA_ROWS = 10;
@@ -54,6 +59,10 @@ const CELL_ORDER: CellKey[] = ['party', 'bankName', 'cheque', 'description', 'am
 const CHEQUE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9\-/]{0,19}$/;
 
 let rowSequence = 0;
+
+interface ReceiptRowAllocation extends ReceiptAllocationPayload {
+  billNumber: string;
+}
 
 interface ReceiptRow {
   key: string;
@@ -67,9 +76,10 @@ interface ReceiptRow {
   bankNameDescription: string;
   chequeNumber: string;
   description: string;
+  descriptionAuto: boolean;
   amount: string;
   adjustmentMode: BankReceiptAdjustmentMode;
-  allocations: ReceiptAllocationPayload[];
+  allocations: ReceiptRowAllocation[];
   adjustments: ReceiptAdjustmentPayload[];
 }
 
@@ -85,6 +95,7 @@ const makeRow = (): ReceiptRow => ({
   bankNameDescription: '',
   chequeNumber: '',
   description: '',
+  descriptionAuto: true,
   amount: '',
   adjustmentMode: 'NO_ADJUSTMENT',
   allocations: [],
@@ -132,42 +143,48 @@ const extractError = (err: unknown): string => {
 };
 
 const mapVoucherLines = (lines: ReceiptVoucherLine[]): ReceiptRow[] =>
-  lines.map((line) => ({
-    key: `rr-${rowSequence++}`,
-    partyId: line.party?.id ?? null,
-    partyName: line.party?.partyName ?? '',
-    partyCode: line.party?.partyCode ?? '',
-    partyAddress: '',
-    partyBalance: null,
-    bankInstrumentId: line.bankInstrument?.id ?? null,
-    bankNameCode: line.bankNameCode ?? line.bankInstrument?.code ?? '',
-    bankNameDescription: line.bankInstrument?.description ?? '',
-    chequeNumber: line.chequeNumber ?? '',
-    description: line.description ?? '',
-    amount: line.amount,
-    adjustmentMode: line.adjustmentMode,
-    allocations: line.allocations
-      .filter((allocation) => allocation.status === 'ACTIVE')
-      .map((allocation) => ({
+  lines.map((line) => {
+    const activeAllocations = line.allocations.filter(
+      (allocation) => allocation.status === 'ACTIVE'
+    );
+    const description = resolveDescriptionOnLoad(line.description, activeAllocations.length > 0);
+    return {
+      key: `rr-${rowSequence++}`,
+      partyId: line.party?.id ?? null,
+      partyName: line.party?.partyName ?? '',
+      partyCode: line.party?.partyCode ?? '',
+      partyAddress: '',
+      partyBalance: null,
+      bankInstrumentId: line.bankInstrument?.id ?? null,
+      bankNameCode: line.bankNameCode ?? line.bankInstrument?.code ?? '',
+      bankNameDescription: line.bankInstrument?.description ?? '',
+      chequeNumber: line.chequeNumber ?? '',
+      description: description.description,
+      descriptionAuto: description.descriptionAuto,
+      amount: line.amount,
+      adjustmentMode: line.adjustmentMode,
+      allocations: activeAllocations.map((allocation) => ({
         purchaseBillId: allocation.purchaseBillId,
         allocatedAmount: allocation.allocatedAmount,
+        billNumber: allocation.sourceDocumentNumber ?? '',
       })),
-    adjustments: line.allocations.flatMap((allocation) =>
-      allocation.adjustments
-        .filter((adjustment) => adjustment.status === 'ACTIVE')
-        .map((adjustment) => ({
-          purchaseBillId: allocation.purchaseBillId,
-          adjustmentLedgerAccountId: adjustment.adjustmentLedgerAccount.id,
-          calculationType: adjustment.calculationType,
-          interestPercent: adjustment.interestPercent,
-          dueValue: adjustment.dueValue,
-          tdsPercent: adjustment.tdsPercent,
-          adjustmentAmount: adjustment.adjustmentAmount,
-          drCr: adjustment.drCr,
-          note: adjustment.note,
-        }))
-    ),
-  }));
+      adjustments: line.allocations.flatMap((allocation) =>
+        allocation.adjustments
+          .filter((adjustment) => adjustment.status === 'ACTIVE')
+          .map((adjustment) => ({
+            purchaseBillId: allocation.purchaseBillId,
+            adjustmentLedgerAccountId: adjustment.adjustmentLedgerAccount.id,
+            calculationType: adjustment.calculationType,
+            interestPercent: adjustment.interestPercent,
+            dueValue: adjustment.dueValue,
+            tdsPercent: adjustment.tdsPercent,
+            adjustmentAmount: adjustment.adjustmentAmount,
+            drCr: adjustment.drCr,
+            note: adjustment.note,
+          }))
+      ),
+    };
+  });
 
 interface ToolbarButtonProps {
   hotkey: string;
@@ -254,6 +271,13 @@ export const ChequeReceiptEntryPage: React.FC = () => {
     setRows((prev) =>
       prev.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row))
     );
+    setDirty(true);
+  }, []);
+
+  // Phase 18.2 - allocation driven description updates resolve the row through
+  // its stable Phase 18.1 key, so one receipt row can never rewrite another.
+  const updateRowByKey = useCallback((key: string, patch: Partial<ReceiptRow>) => {
+    setRows((prev) => prev.map((row) => (row.key === key ? { ...row, ...patch } : row)));
     setDirty(true);
   }, []);
 
@@ -466,7 +490,12 @@ export const ChequeReceiptEntryPage: React.FC = () => {
         setOutstandingDialog({ row: index });
         return;
       }
-      updateRow(index, { adjustmentMode: mode, allocations: [], adjustments: [] });
+      updateRow(index, {
+        adjustmentMode: mode,
+        ...resolveDescriptionAfterAllocation(row, []),
+        allocations: [],
+        adjustments: [],
+      });
       clearRowError(row.key);
     },
     [rows, updateRow, setRowError, clearRowError]
@@ -476,14 +505,19 @@ export const ChequeReceiptEntryPage: React.FC = () => {
     (result: OutstandingApplyResult) => {
       if (!outstandingDialog) return;
       const target = rows[outstandingDialog.row];
-      updateRow(outstandingDialog.row, {
+      if (!target) return;
+      updateRowByKey(target.key, {
+        ...resolveDescriptionAfterAllocation(
+          target,
+          result.allocations.map((allocation) => allocation.billNumber)
+        ),
         allocations: result.allocations,
         adjustments: result.adjustments,
       });
-      if (target) clearRowError(target.key);
+      clearRowError(target.key);
       setOutstandingDialog(null);
     },
-    [outstandingDialog, rows, updateRow, clearRowError]
+    [outstandingDialog, rows, updateRowByKey, clearRowError]
   );
   const handleSave = useCallback(async () => {
     if (savingRef.current) return;
@@ -551,7 +585,13 @@ export const ChequeReceiptEntryPage: React.FC = () => {
         description: row.description.trim() === '' ? null : row.description.trim(),
         amount: row.amount,
         adjustmentMode: row.adjustmentMode,
-        allocations: row.adjustmentMode === 'AGAINST_BILL' ? row.allocations : [],
+        allocations:
+          row.adjustmentMode === 'AGAINST_BILL'
+            ? row.allocations.map((allocation) => ({
+                purchaseBillId: allocation.purchaseBillId,
+                allocatedAmount: allocation.allocatedAmount,
+              }))
+            : [],
         adjustments: row.adjustmentMode === 'AGAINST_BILL' ? row.adjustments : [],
       })),
     };
@@ -1228,6 +1268,7 @@ export const ChequeReceiptEntryPage: React.FC = () => {
                               partyCode: '',
                               partyAddress: '',
                               partyBalance: null,
+                              ...resolveDescriptionAfterAllocation(row, []),
                               allocations: [],
                               adjustments: [],
                             });
@@ -1306,7 +1347,9 @@ export const ChequeReceiptEntryPage: React.FC = () => {
                         placeholder="Description"
                         maxLength={200}
                         onFocus={() => setActiveRow(index)}
-                        onChange={(event) => updateRow(index, { description: event.target.value })}
+                        onChange={(event) =>
+                          updateRow(index, resolveDescriptionAfterManualEdit(event.target.value))
+                        }
                         onKeyDown={(event) => handleCellKeyDown(event, index, 'description')}
                         className="w-full h-6 px-1 bg-transparent text-[11.5px] focus:outline-none focus:ring-1 focus:ring-[#2c5f57]"
                       />
@@ -1327,6 +1370,9 @@ export const ChequeReceiptEntryPage: React.FC = () => {
                           );
                           const patch: Partial<ReceiptRow> = { amount: cleaned };
                           if (nextAmount + 0.004 < allocated) {
+                            const cleared = resolveDescriptionAfterAllocation(row, []);
+                            patch.description = cleared.description;
+                            patch.descriptionAuto = cleared.descriptionAuto;
                             patch.allocations = [];
                             patch.adjustments = [];
                           }

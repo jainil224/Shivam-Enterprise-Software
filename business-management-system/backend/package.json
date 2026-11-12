@@ -25,7 +25,8 @@
     "test:phase17": "tsx scripts/phase17-ledger-reports-test.ts",
     "test:phase17.1": "tsx scripts/phase17.1-ledger-print-test.ts",
     "test:phase18": "tsx scripts/phase18-bank-receipts-test.ts",
-    "test:phase18.1": "tsx scripts/phase18.1-bank-receipts-test.ts"
+    "test:phase18.1": "tsx scripts/phase18.1-bank-receipts-test.ts",
+    "test:phase18.2": "tsx scripts/phase18.2-bank-receipt-description-test.ts"
   },
   "keywords": [
     "bms",
