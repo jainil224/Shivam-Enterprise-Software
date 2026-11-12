@@ -8,6 +8,12 @@ import {
   ReceiptAdjustmentAccount,
   ReceiptAdjustmentPayload,
 } from '../../types';
+import {
+  exceedsBillBalance,
+  netSettlement,
+  remainingBillBalance,
+  totalSettled,
+} from '../../utils/receiptSettlement';
 
 const money = (value: string | number | null | undefined): string => {
   const numeric = Number(value ?? 0);
@@ -159,6 +165,18 @@ export const JournalVoucherAutoDialog: React.FC<JournalVoucherAutoDialogProps> =
     return { lines, totalDebit, totalCredit };
   }, [rows, partyName]);
 
+  // Phase 18.3 - Bill Balance and Cur Received must react to the Add/Less
+  // lines immediately, using the same DR/CR settlement rule as the backend.
+  const settlement = useMemo(
+    () =>
+      netSettlement(
+        rows.map((row) => ({ drCr: row.drCr, adjustmentAmount: row.amount }))
+      ),
+    [rows]
+  );
+  const balanceAfterAdjustment = remainingBillBalance(billBalance, settlement);
+  const settledTotal = totalSettled(curReceived, settlement);
+
   if (!open) return null;
 
   const updateRow = (key: string, patch: Partial<JvRow>) => {
@@ -181,6 +199,15 @@ export const JournalVoucherAutoDialog: React.FC<JournalVoucherAutoDialogProps> =
     if (Math.abs(preview.totalDebit - preview.totalCredit) > 0.004) {
       setConfirming(false);
       setError('The journal adjustment does not balance.');
+      return;
+    }
+    if (exceedsBillBalance(billBalance, settlement)) {
+      setConfirming(false);
+      setError(
+        `The adjustment of ${money(settlement)} exceeds the remaining bill balance of ${money(
+          billBalance
+        )}.`
+      );
       return;
     }
 
@@ -226,7 +253,13 @@ export const JournalVoucherAutoDialog: React.FC<JournalVoucherAutoDialogProps> =
           </div>
           <div>
             <span className="block text-[9.5px] font-bold uppercase text-slate-500">Bill Balance</span>
-            <span className="font-mono font-semibold">{money(billBalance)}</span>
+            <span
+              className={`font-mono font-semibold ${
+                balanceAfterAdjustment < -0.004 ? 'text-red-600' : ''
+              }`}
+            >
+              {money(balanceAfterAdjustment)}
+            </span>
           </div>
           <div>
             <span className="block text-[9.5px] font-bold uppercase text-slate-500">
@@ -236,7 +269,7 @@ export const JournalVoucherAutoDialog: React.FC<JournalVoucherAutoDialogProps> =
           </div>
           <div>
             <span className="block text-[9.5px] font-bold uppercase text-slate-500">Cur Received</span>
-            <span className="font-mono font-semibold">{money(curReceived)}</span>
+            <span className="font-mono font-semibold">{money(settledTotal)}</span>
           </div>
         </div>
 

@@ -6,14 +6,13 @@
 
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { BankReceiptService } from '../src/services/bankReceiptService.js';
 import { BankVoucherService } from '../src/services/bankVoucherService.js';
 import { LedgerAccountService } from '../src/services/ledgerAccountService.js';
 
 const prisma = new PrismaClient();
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const repoRoot = path.resolve(__dirname, '../..');
 const receiptService = new BankReceiptService();
 const voucherService = new BankVoucherService();
 const ledgerService = new LedgerAccountService();
