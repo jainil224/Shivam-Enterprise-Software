@@ -14,7 +14,7 @@
 //   * every purchase bill number starts with P18/BILL/,
 //   * cleanup deletes only rows that carry those tags.
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { BankReceiptService } from '../src/services/bankReceiptService.js';
 import { BankVoucherService } from '../src/services/bankVoucherService.js';
 
@@ -200,12 +200,32 @@ async function create(): Promise<void> {
 
   const partyRows = await Promise.all(
     [
-      { code: PARTY_CODES[0], name: 'P18 TEMP Alpha Traders (demo)' },
-      { code: PARTY_CODES[1], name: 'P18 TEMP Beta Textiles (demo)' },
+      {
+        code: PARTY_CODES[0],
+        name: 'P18 TEMP Alpha Traders (demo)',
+        address: '12 Marine Drive, Fort',
+        city: 'Mumbai',
+        state: 'Maharashtra',
+        phone: '9820011223',
+      },
+      {
+        code: PARTY_CODES[1],
+        name: 'P18 TEMP Beta Textiles (demo)',
+        address: '150 Kalawad Road',
+        city: 'Rajkot',
+        state: 'Gujarat',
+        phone: '9820033445',
+      },
     ].map((party) =>
       prisma.party.upsert({
         where: { companyId_partyCode: { companyId: COMPANY_ID, partyCode: party.code } },
-        update: { isActive: true },
+        update: {
+          isActive: true,
+          address: party.address,
+          city: party.city,
+          state: party.state,
+          phone: party.phone,
+        },
         create: {
           companyId: COMPANY_ID,
           partyCode: party.code,
@@ -213,6 +233,10 @@ async function create(): Promise<void> {
           partyType: 'CUSTOMER',
           openingBalance: 0,
           balanceType: 'DEBIT',
+          address: party.address,
+          city: party.city,
+          state: party.state,
+          phone: party.phone,
         },
         select: { id: true, partyCode: true, partyName: true },
       })
@@ -222,9 +246,28 @@ async function create(): Promise<void> {
   const [alpha, beta] = partyRows;
 
   const billSpecs = [
-    { partyId: alpha.id, number: `${BILL_PREFIX}001`, date: '2026-04-05', amount: '10000.00' },
-    { partyId: alpha.id, number: `${BILL_PREFIX}002`, date: '2026-04-20', amount: '15000.00' },
-    { partyId: beta.id, number: `${BILL_PREFIX}003`, date: '2026-05-02', amount: '9000.00' },
+    { partyId: alpha.id, number: `${BILL_PREFIX}001`, date: '2026-04-05', amount: '10000.00', items: [] },
+    { partyId: alpha.id, number: `${BILL_PREFIX}002`, date: '2026-04-20', amount: '15000.00', items: [] },
+    { partyId: beta.id, number: `${BILL_PREFIX}003`, date: '2026-05-02', amount: '9000.00', items: [] },
+    {
+      partyId: alpha.id,
+      number: `${BILL_PREFIX}004`,
+      date: '2026-04-22',
+      amount: '18703.00',
+      items: [
+        { itemDescription: 'Cotton Saree', quantity: '10.000', unit: 'PCS', rate: '1200.00' },
+        { itemDescription: 'Silk Dupatta', quantity: '5.000', unit: 'PCS', rate: '800.00' },
+      ],
+    },
+    {
+      partyId: alpha.id,
+      number: `${BILL_PREFIX}005`,
+      date: '2026-04-23',
+      amount: '17700.00',
+      items: [
+        { itemDescription: 'Cotton Fabric', quantity: '20.000', unit: 'MTR', rate: '600.00' },
+      ],
+    },
   ];
   const bills: Array<{ id: string; billNumber: string; totalAmount: string }> = [];
   for (const spec of billSpecs) {
@@ -257,6 +300,24 @@ async function create(): Promise<void> {
       select: { id: true, billNumber: true, totalAmount: true },
     });
     bills.push({ id: bill.id, billNumber: bill.billNumber, totalAmount: String(bill.totalAmount) });
+
+    if (spec.items.length > 0) {
+      await prisma.purchaseBillItem.deleteMany({ where: { purchaseBillId: bill.id } });
+      for (const item of spec.items) {
+        await prisma.purchaseBillItem.create({
+          data: {
+            purchaseBillId: bill.id,
+            itemDescription: item.itemDescription,
+            quantity: new Prisma.Decimal(item.quantity),
+            unit: item.unit,
+            rate: new Prisma.Decimal(item.rate),
+            taxableAmount: new Prisma.Decimal(
+              (Number(item.quantity) * Number(item.rate)).toFixed(2)
+            ),
+          },
+        });
+      }
+    }
   }
 
   const book = await receiptService.createBook(COMPANY_ID, FY_ID, {
@@ -387,6 +448,70 @@ async function create(): Promise<void> {
     ],
   });
   await voucherService.cancel(COMPANY_ID, FY_ID, 'RECEIPT', voucher4.id, 'P18 TEMP demo - cheque returned unpaid');
+
+  // Historical receipt that over-pays bill 005 by 24.00. It carries no journal
+  // lines, so the demo bank balance stays untouched while the popup can show a
+  // genuine negative bill balance (-24.00) instead of clamping it to zero.
+  const alphaLedger = await prisma.ledgerAccount.findFirst({
+    where: { companyId: COMPANY_ID, partyId: alpha.id },
+    select: { id: true },
+  });
+  if (!alphaLedger) throw new Error('Alpha party ledger missing; cannot create the negative-balance fixture.');
+
+  const historical = await prisma.bankVoucher.create({
+    data: {
+      companyId: COMPANY_ID,
+      financialYearId: FY_ID,
+      voucherType: 'RECEIPT',
+      voucherNumber: 'P18-HIST-0001',
+      voucherDate: new Date('2026-04-24T00:00:00.000Z'),
+      partyId: alpha.id,
+      counterpartyLedgerId: alphaLedger.id,
+      bankAccountLedgerId: bankLedger.id,
+      bankReceiptBookId: book.id,
+      paymentMode: 'CHEQUE',
+      amount: new Prisma.Decimal('17724.00'),
+      narration: 'P18 TEMP historical over-receipt (demo data, safe to delete)',
+      status: 'POSTED',
+      revision: 1,
+    },
+    select: { id: true },
+  });
+
+  const historicalLine = await prisma.bankVoucherLine.create({
+    data: {
+      companyId: COMPANY_ID,
+      financialYearId: FY_ID,
+      bankVoucherId: historical.id,
+      rowNumber: 1,
+      revision: 1,
+      partyId: alpha.id,
+      partyLedgerAccountId: alphaLedger.id,
+      amount: new Prisma.Decimal('17724.00'),
+      adjustmentMode: 'AGAINST_BILL',
+      description: 'P18 TEMP historical over-receipt (demo data, safe to delete)',
+    },
+    select: { id: true },
+  });
+
+  await prisma.bankReceiptBillAllocation.create({
+    data: {
+      companyId: COMPANY_ID,
+      financialYearId: FY_ID,
+      bankVoucherLineId: historicalLine.id,
+      purchaseBillId: bills[4].id,
+      sourceDocumentType: 'PURCHASE_BILL',
+      sourceDocumentNumber: bills[4].billNumber,
+      billDate: new Date('2026-04-23T00:00:00.000Z'),
+      billAmount: new Prisma.Decimal('17700.00'),
+      billTds: new Prisma.Decimal('0.00'),
+      previousReceived: new Prisma.Decimal('0.00'),
+      allocatedAmount: new Prisma.Decimal('17724.00'),
+      balanceAfter: new Prisma.Decimal('-24.00'),
+      status: 'ACTIVE',
+      revision: 1,
+    },
+  });
 
   const numbers = [];
   for (const id of [voucher1.id, voucher2.id, voucher3.id, voucher4.id]) {

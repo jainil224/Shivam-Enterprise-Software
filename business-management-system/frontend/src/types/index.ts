@@ -635,6 +635,12 @@ export interface ReceiptAdjustmentAccount {
   balance: SignedLedgerBalance;
 }
 
+export interface OutstandingBillItemRow {
+  itemName: string;
+  quantity: string;
+  unit: string;
+}
+
 export interface OutstandingBillRow {
   id: string;
   sourceDocumentType: string;
@@ -649,6 +655,7 @@ export interface OutstandingBillRow {
   currentReceived: string;
   balance: string;
   jvRequired: boolean;
+  items: OutstandingBillItemRow[];
 }
 
 export interface OutstandingBillsResponse {

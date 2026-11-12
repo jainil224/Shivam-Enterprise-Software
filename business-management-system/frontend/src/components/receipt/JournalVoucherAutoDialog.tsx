@@ -77,6 +77,7 @@ export const JournalVoucherAutoDialog: React.FC<JournalVoucherAutoDialogProps> =
 }) => {
   const [rows, setRows] = useState<JvRow[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   const [lookupRowKey, setLookupRowKey] = useState<string | null>(null);
   const [lookupSearch, setLookupSearch] = useState('');
@@ -86,6 +87,7 @@ export const JournalVoucherAutoDialog: React.FC<JournalVoucherAutoDialogProps> =
   useEffect(() => {
     if (!open) return;
     setError(null);
+    setConfirming(false);
     setLookupRowKey(null);
     setRows(
       initialAdjustments.length > 0
@@ -148,8 +150,12 @@ export const JournalVoucherAutoDialog: React.FC<JournalVoucherAutoDialogProps> =
         amount,
       });
     }
-    const totalDebit = lines.filter((line) => line.drCr === 'DR').reduce((sum, line) => sum + line.amount, 0);
-    const totalCredit = lines.filter((line) => line.drCr === 'CR').reduce((sum, line) => sum + line.amount, 0);
+    const totalDebit = lines
+      .filter((line) => line.drCr === 'DR')
+      .reduce((sum, line) => sum + line.amount, 0);
+    const totalCredit = lines
+      .filter((line) => line.drCr === 'CR')
+      .reduce((sum, line) => sum + line.amount, 0);
     return { lines, totalDebit, totalCredit };
   }, [rows, partyName]);
 
@@ -159,24 +165,29 @@ export const JournalVoucherAutoDialog: React.FC<JournalVoucherAutoDialogProps> =
     setRows((prev) => prev.map((row) => (row.key === key ? { ...row, ...patch } : row)));
   };
 
-  const handleConfirm = (accept: boolean) => {
-    if (!accept) {
-      onClose();
+  const handleYes = () => {
+    const withAmount = rows.filter((row) => toAmount(row.amount) > 0);
+    const missingAccount = withAmount.find((row) => row.accountId === '');
+    if (missingAccount) {
+      setConfirming(false);
+      setError('Every adjustment line with an amount needs an active ledger account.');
       return;
     }
-
-    const complete = rows.filter((row) => row.accountId !== '' && toAmount(row.amount) > 0);
-    if (complete.length === 0) {
+    if (withAmount.length === 0) {
+      setConfirming(false);
       setError('Add at least one adjustment line with an account and an amount.');
       return;
     }
     if (Math.abs(preview.totalDebit - preview.totalCredit) > 0.004) {
+      setConfirming(false);
       setError('The journal adjustment does not balance.');
       return;
     }
 
+    setError(null);
+    setConfirming(false);
     onSave(
-      complete.map((row) => ({
+      withAmount.map((row) => ({
         adjustmentLedgerAccountId: row.accountId,
         calculationType: row.calculationType,
         interestPercent: row.interestPercent.trim() === '' ? null : row.interestPercent.trim(),
@@ -190,16 +201,21 @@ export const JournalVoucherAutoDialog: React.FC<JournalVoucherAutoDialogProps> =
   };
 
   return (
-    <div className="fixed inset-0 z-[70] bg-slate-900/60 flex items-center justify-center p-2 sm:p-4">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-5xl max-h-[94vh] flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-3 py-2 bg-[#2c5f57] text-white">
-          <span className="text-[12.5px] font-bold uppercase tracking-wide">Journal Voucher Auto</span>
-          <button type="button" onClick={onClose} className="p-1 rounded hover:bg-white/10" aria-label="Close">
+    <div className="fixed inset-0 z-[70] bg-slate-900/60 flex items-center justify-center p-2 sm:p-3">
+      <div className="bg-white shadow-2xl w-full max-w-5xl max-h-[94vh] flex flex-col overflow-hidden border border-[#789d93]">
+        <div className="flex items-center justify-between px-2.5 py-1.5 bg-[#2c5f57] text-white">
+          <span className="text-[12px] font-bold uppercase tracking-wide">Journal Voucher Auto</span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 rounded hover:bg-white/10"
+            aria-label="Close"
+          >
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        <div className="px-3 py-2 bg-[#eef5f2] border-b border-[#c2dcd5] grid grid-cols-2 sm:grid-cols-5 gap-2 text-[11px]">
+        <div className="px-2.5 py-1.5 bg-[#eef5f2] border-b border-[#c2dcd5] grid grid-cols-2 sm:grid-cols-5 gap-x-3 gap-y-1 text-[11px]">
           <div>
             <span className="block text-[9.5px] font-bold uppercase text-slate-500">Bill Date</span>
             <span className="font-semibold">{billDate}</span>
@@ -213,7 +229,9 @@ export const JournalVoucherAutoDialog: React.FC<JournalVoucherAutoDialogProps> =
             <span className="font-mono font-semibold">{money(billBalance)}</span>
           </div>
           <div>
-            <span className="block text-[9.5px] font-bold uppercase text-slate-500">Cheque Balance</span>
+            <span className="block text-[9.5px] font-bold uppercase text-slate-500">
+              Cheque Balance
+            </span>
             <span className="font-mono font-semibold">{money(chequeBalance)}</span>
           </div>
           <div>
@@ -222,8 +240,8 @@ export const JournalVoucherAutoDialog: React.FC<JournalVoucherAutoDialogProps> =
           </div>
         </div>
 
-        <div className="px-3 py-1 bg-white border-b border-slate-200 text-[11px] text-slate-600 flex items-center justify-between">
-          <span>
+        <div className="px-2.5 py-1 bg-white border-b border-slate-200 text-[11px] text-slate-600 flex items-center justify-between gap-2">
+          <span className="truncate">
             Bill <span className="font-mono font-bold text-slate-800">{billNumber}</span> for{' '}
             <span className="font-semibold">{partyName || 'party'}</span>
           </span>
@@ -238,31 +256,31 @@ export const JournalVoucherAutoDialog: React.FC<JournalVoucherAutoDialogProps> =
         </div>
 
         {error && (
-          <div className="flex items-center gap-1.5 bg-red-50 border-b border-red-200 text-red-700 text-[11.5px] px-3 py-1.5">
+          <div className="flex items-center gap-1.5 bg-red-50 border-b border-red-200 text-red-700 text-[11px] px-2.5 py-1">
             <TriangleAlert className="w-3.5 h-3.5" />
             {error}
           </div>
         )}
 
         <div className="flex-1 overflow-auto">
-          <table className="w-full text-[11.5px] border-collapse">
+          <table className="w-full text-[11px] border-collapse">
             <thead className="sticky top-0 bg-[#d5e7e1] z-10">
-              <tr className="text-slate-700 text-[10px] uppercase tracking-wider">
-                <th className="px-2 py-1.5 text-left border-b border-[#789d93]">Account Name</th>
-                <th className="px-2 py-1.5 text-left border-b border-[#789d93] w-20">Type</th>
-                <th className="px-2 py-1.5 text-right border-b border-[#789d93] w-16">Int %</th>
-                <th className="px-2 py-1.5 text-right border-b border-[#789d93] w-16">Due</th>
-                <th className="px-2 py-1.5 text-right border-b border-[#789d93] w-16">Tds %</th>
-                <th className="px-2 py-1.5 text-right border-b border-[#789d93] w-24">Add/Less</th>
-                <th className="px-2 py-1.5 text-center border-b border-[#789d93] w-20">Dr/Cr</th>
-                <th className="px-2 py-1.5 text-left border-b border-[#789d93]">Note</th>
-                <th className="px-2 py-1.5 text-center border-b border-[#789d93] w-10" />
+              <tr className="text-slate-700 text-[9.5px] uppercase tracking-wider">
+                <th className="px-1.5 py-1 text-left border-b border-[#789d93]">Account Name</th>
+                <th className="px-1.5 py-1 text-left border-b border-[#789d93] w-16">Type</th>
+                <th className="px-1.5 py-1 text-right border-b border-[#789d93] w-14">Int %</th>
+                <th className="px-1.5 py-1 text-right border-b border-[#789d93] w-14">Due</th>
+                <th className="px-1.5 py-1 text-right border-b border-[#789d93] w-14">Tds %</th>
+                <th className="px-1.5 py-1 text-right border-b border-[#789d93] w-24">Add/Less</th>
+                <th className="px-1.5 py-1 text-center border-b border-[#789d93] w-16">Dr/Cr</th>
+                <th className="px-1.5 py-1 text-left border-b border-[#789d93]">Note</th>
+                <th className="px-1.5 py-1 text-center border-b border-[#789d93] w-8" />
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.key} className="border-b border-slate-100">
-                  <td className="px-1 py-1">
+                <tr key={row.key} className="border-b border-slate-200">
+                  <td className="px-1 py-0.5">
                     <div className="flex items-center gap-1">
                       <input
                         value={row.accountName}
@@ -276,12 +294,12 @@ export const JournalVoucherAutoDialog: React.FC<JournalVoucherAutoDialogProps> =
                           setLookupSearch(row.accountName);
                         }}
                         placeholder="Click to select adjustment account"
-                        className="w-full h-6 px-1 text-[11px] border border-slate-300 rounded cursor-pointer focus:outline-none focus:border-[#2c5f57]"
+                        className="w-full h-6 px-1 text-[11px] border border-slate-300 bg-white cursor-pointer focus:outline-none focus:border-[#2c5f57]"
                       />
                       <Search className="w-3 h-3 text-slate-400 shrink-0" />
                     </div>
                   </td>
-                  <td className="px-1 py-1">
+                  <td className="px-1 py-0.5">
                     <select
                       value={row.calculationType}
                       onChange={(event) =>
@@ -289,7 +307,7 @@ export const JournalVoucherAutoDialog: React.FC<JournalVoucherAutoDialogProps> =
                           calculationType: event.target.value as BankReceiptCalculationType,
                         })
                       }
-                      className="w-full h-6 px-1 text-[11px] border border-slate-300 rounded"
+                      className="w-full h-6 px-1 text-[11px] border border-slate-300 bg-white"
                     >
                       {(Object.keys(CALCULATION_TYPE_LABELS) as BankReceiptCalculationType[]).map(
                         (type) => (
@@ -300,49 +318,53 @@ export const JournalVoucherAutoDialog: React.FC<JournalVoucherAutoDialogProps> =
                       )}
                     </select>
                   </td>
-                  <td className="px-1 py-1">
+                  <td className="px-1 py-0.5">
                     <input
                       value={row.interestPercent}
-                      onChange={(event) => updateRow(row.key, { interestPercent: event.target.value })}
-                      className="w-full h-6 px-1 text-right font-mono text-[11px] border border-slate-300 rounded"
+                      onChange={(event) =>
+                        updateRow(row.key, { interestPercent: event.target.value })
+                      }
+                      className="w-full h-6 px-1 text-right font-mono text-[11px] border border-slate-300 bg-white"
                       placeholder="0.00"
                     />
                   </td>
-                  <td className="px-1 py-1">
+                  <td className="px-1 py-0.5">
                     <input
                       value={row.dueValue}
                       onChange={(event) => updateRow(row.key, { dueValue: event.target.value })}
-                      className="w-full h-6 px-1 text-right font-mono text-[11px] border border-slate-300 rounded"
+                      className="w-full h-6 px-1 text-right font-mono text-[11px] border border-slate-300 bg-white"
                       placeholder="0"
                     />
                   </td>
-                  <td className="px-1 py-1">
+                  <td className="px-1 py-0.5">
                     <input
                       value={row.tdsPercent}
                       onChange={(event) => updateRow(row.key, { tdsPercent: event.target.value })}
-                      className="w-full h-6 px-1 text-right font-mono text-[11px] border border-slate-300 rounded"
+                      className="w-full h-6 px-1 text-right font-mono text-[11px] border border-slate-300 bg-white"
                       placeholder="0.00"
                     />
                   </td>
-                  <td className="px-1 py-1">
+                  <td className="px-1 py-0.5">
                     <input
-                      type="number"
-                      min="0"
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
                       value={row.amount}
-                      onChange={(event) => updateRow(row.key, { amount: event.target.value })}
-                      className="w-full h-6 px-1 text-right font-mono text-[11px] border border-slate-300 rounded"
+                      onChange={(event) => {
+                        const cleaned = event.target.value.replace(/[^0-9.]/g, '');
+                        updateRow(row.key, { amount: cleaned });
+                      }}
+                      className="w-full h-6 px-1 text-right font-mono text-[11px] border border-slate-300 bg-white"
                       placeholder="0.00"
                     />
                   </td>
-                  <td className="px-1 py-1">
-                    <div className="flex items-center justify-center gap-1">
+                  <td className="px-1 py-0.5">
+                    <div className="flex items-center justify-center gap-0.5">
                       {(['DR', 'CR'] as BankReceiptDrCr[]).map((side) => (
                         <button
                           key={side}
                           type="button"
                           onClick={() => updateRow(row.key, { drCr: side })}
-                          className={`px-1.5 py-0.5 rounded border text-[10px] font-bold ${
+                          className={`px-1.5 py-0.5 border text-[10px] font-bold ${
                             row.drCr === side
                               ? 'bg-[#2c5f57] text-white border-[#2c5f57]'
                               : 'bg-white text-slate-500 border-slate-300'
@@ -353,15 +375,15 @@ export const JournalVoucherAutoDialog: React.FC<JournalVoucherAutoDialogProps> =
                       ))}
                     </div>
                   </td>
-                  <td className="px-1 py-1">
+                  <td className="px-1 py-0.5">
                     <input
                       value={row.note}
                       onChange={(event) => updateRow(row.key, { note: event.target.value })}
-                      className="w-full h-6 px-1 text-[11px] border border-slate-300 rounded"
+                      className="w-full h-6 px-1 text-[11px] border border-slate-300 bg-white"
                       placeholder="Narration"
                     />
                   </td>
-                  <td className="px-1 py-1 text-center">
+                  <td className="px-1 py-0.5 text-center">
                     <button
                       type="button"
                       onClick={() => setRows((prev) => prev.filter((item) => item.key !== row.key))}
@@ -377,7 +399,7 @@ export const JournalVoucherAutoDialog: React.FC<JournalVoucherAutoDialogProps> =
           </table>
 
           <div className="p-2 border-t border-slate-200 bg-slate-50">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <div className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 mb-1">
               Dr / Cr Preview
             </div>
             {preview.lines.length === 0 ? (
@@ -404,7 +426,9 @@ export const JournalVoucherAutoDialog: React.FC<JournalVoucherAutoDialogProps> =
                   <tr className="border-t-2 border-slate-300 font-bold">
                     <td className="py-0.5">Total</td>
                     <td className="py-0.5 text-center">
-                      {Math.abs(preview.totalDebit - preview.totalCredit) < 0.004 ? 'Balanced' : 'Unbalanced'}
+                      {Math.abs(preview.totalDebit - preview.totalCredit) < 0.004
+                        ? 'Balanced'
+                        : 'Unbalanced'}
                     </td>
                     <td className="py-0.5 text-right font-mono">
                       {money(preview.totalDebit)} / {money(preview.totalCredit)}
@@ -416,33 +440,58 @@ export const JournalVoucherAutoDialog: React.FC<JournalVoucherAutoDialogProps> =
           </div>
         </div>
 
-        <div className="flex items-center justify-between px-3 py-2 bg-[#dce8e1] border-t border-[#789d93] text-[11px]">
-          <span className="text-slate-600">
-            Adjustments post only when the receipt voucher is saved.
-          </span>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => handleConfirm(false)}
-              className="px-3 py-1 rounded border border-slate-400 bg-white font-bold text-slate-600"
-            >
-              No
-            </button>
-            <button
-              type="button"
-              onClick={() => handleConfirm(true)}
-              className="px-3 py-1 rounded bg-[#2c5f57] text-white font-bold hover:bg-[#204741]"
-            >
-              Confirm New!!
-            </button>
+        {confirming ? (
+          <div className="px-2.5 py-1.5 bg-amber-50 border-t border-amber-300 text-[11px] text-amber-900 flex items-center justify-between gap-2 flex-wrap">
+            <span className="font-semibold">Are you sure to close?</span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleYes}
+                className="px-3 py-0.5 bg-[#2c5f57] text-white font-bold hover:bg-[#204741]"
+              >
+                (+) Yes
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirming(false)}
+                className="px-3 py-0.5 border border-slate-400 bg-white font-bold text-slate-600 hover:bg-slate-50"
+              >
+                (-) No
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex items-center justify-between px-2.5 py-1.5 bg-[#dce8e1] border-t border-[#789d93] text-[11px]">
+            <span className="text-slate-600">
+              Adjustments post only when the receipt voucher is saved.
+            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-3 py-0.5 border border-slate-400 bg-white font-bold text-slate-600 hover:bg-slate-50"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  setConfirming(true);
+                }}
+                className="px-3 py-0.5 bg-[#2c5f57] text-white font-bold hover:bg-[#204741]"
+              >
+                Confirm New!!
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {lookupRowKey !== null && (
         <div className="fixed inset-0 z-[80] bg-slate-900/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between px-3 py-1.5 bg-[#2c5f57] text-white">
+          <div className="bg-white shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden border border-[#789d93]">
+            <div className="flex items-center justify-between px-2.5 py-1.5 bg-[#2c5f57] text-white">
               <span className="text-[11.5px] font-bold uppercase">Adjustment Ledger Lookup</span>
               <button
                 type="button"
@@ -460,7 +509,7 @@ export const JournalVoucherAutoDialog: React.FC<JournalVoucherAutoDialogProps> =
                 onChange={(event) => setLookupSearch(event.target.value)}
                 autoFocus
                 placeholder="Search eligible adjustment account..."
-                className="flex-1 h-7 px-2 text-[11.5px] bg-white border border-[#789d93] rounded focus:outline-none focus:ring-1 focus:ring-[#2c5f57]"
+                className="flex-1 h-7 px-2 text-[11.5px] bg-white border border-[#789d93] focus:outline-none focus:ring-1 focus:ring-[#2c5f57]"
               />
               {lookupLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-[#2c5f57]" />}
             </div>

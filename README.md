@@ -757,5 +757,4 @@ pg_restore -U postgres -d business_management -v "d:\SIVAM Enterprise Software\b
 
 ---
 
-**Developed for SIVAM ENTERPRISE**  
-*Engineered for speed, data sovereignty, and precision accounting.*
+**Coded and Designed by Jainil Patel**

@@ -632,12 +632,20 @@ export class BankReceiptService {
         currentReceived: '0.00',
         balance: money(balance),
         jvRequired: false,
+        items: bill.items.map((item) => ({
+          itemName: item.itemDescription,
+          quantity: item.quantity.toFixed(3),
+          unit: item.unit,
+        })),
         balanceValue: balance,
       };
     });
 
+    // A bill settled to exactly zero is no longer allocatable. Over-received
+    // bills keep their genuine negative balance (for example -24.00) so the
+    // popup can show the real figure instead of silently hiding the bill.
     return rows
-      .filter((row) => row.balanceValue.gt(0))
+      .filter((row) => !row.balanceValue.isZero())
       .map(({ balanceValue, ...row }) => row);
   }
 
@@ -1264,8 +1272,37 @@ export class BankReceiptService {
           }
         }
 
-        const netCredit = amount
-          .plus(
+        if (allocations.length > 0 && adjustments.length > 0) {
+          const netAdjustmentByBill = new Map<string, Prisma.Decimal>();
+          for (const adjustment of adjustments) {
+            if (!adjustment.purchaseBillId) continue;
+            const delta =
+              adjustment.drCr === 'DR' ? adjustment.amount : adjustment.amount.negated();
+            netAdjustmentByBill.set(
+              adjustment.purchaseBillId,
+              (netAdjustmentByBill.get(adjustment.purchaseBillId) ?? new Prisma.Decimal(0)).plus(
+                delta
+              )
+            );
+          }
+          for (const allocation of allocations) {
+            const net = netAdjustmentByBill.get(allocation.purchaseBillId) ?? new Prisma.Decimal(0);
+            const settlement = allocation.allocatedAmount.plus(net);
+            const billBalance = allocation.billAmount
+              .minus(allocation.billTds)
+              .minus(allocation.previousReceived);
+            if (settlement.gt(billBalance)) {
+              errors.push({
+                field: `lines.${index}.allocations`,
+                message: `${label}: bill ${allocation.billNumber} would be settled by ${money(
+                  settlement
+                )} against an outstanding balance of ${money(billBalance)}.`,
+              });
+            }
+          }
+        }
+
+        const netCredit = amount          .plus(
             adjustments
               .filter((row) => row.drCr === 'DR')
               .reduce((sum, row) => sum.plus(row.amount), new Prisma.Decimal(0))

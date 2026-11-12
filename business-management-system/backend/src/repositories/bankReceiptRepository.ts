@@ -283,7 +283,10 @@ export class BankReceiptRepository {
         totalAmount: true,
         status: true,
         book: { select: { id: true, bookName: true } },
-        items: { select: { id: true } },
+        items: {
+          select: { itemDescription: true, quantity: true, unit: true },
+          orderBy: { itemDescription: 'asc' },
+        },
       },
     });
   }

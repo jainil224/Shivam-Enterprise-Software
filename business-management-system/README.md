@@ -38,3 +38,7 @@ npm run dev:backend
 # 3. Start Frontend Web Client (Port 5173)
 npm run dev:frontend
 ```
+
+---
+
+**Coded and Designed by Jainil Patel**

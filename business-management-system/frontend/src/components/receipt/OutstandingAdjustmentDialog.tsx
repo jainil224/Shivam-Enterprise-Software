@@ -8,16 +8,30 @@ import {
 } from '../../types';
 import { JournalVoucherAutoDialog } from './JournalVoucherAutoDialog';
 
+const DASH = '\u2014';
+
 const money = (value: string | number | null | undefined): string => {
   const numeric = Number(value ?? 0);
   if (!Number.isFinite(numeric)) return '0.00';
   return numeric.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
-const toAmount = (value: string): number => {
-  const parsed = Number(value);
+const toAmount = (value: string | number | null | undefined): number => {
+  const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
 };
+
+const round2 = (value: number): number => Math.round(value * 100) / 100;
+
+const netAdjustmentOf = (rows: ReceiptAdjustmentPayload[] | undefined): number =>
+  (rows ?? []).reduce(
+    (sum, row) =>
+      sum +
+      (row.drCr === 'DR'
+        ? toAmount(String(row.adjustmentAmount))
+        : -toAmount(String(row.adjustmentAmount))),
+    0
+  );
 
 export interface OutstandingApplyResult {
   allocations: ReceiptAllocationPayload[];
@@ -52,18 +66,12 @@ export const OutstandingAdjustmentDialog: React.FC<OutstandingAdjustmentDialogPr
   onApply,
 }) => {
   const [bills, setBills] = useState<OutstandingBillRow[]>([]);
-  const [totals, setTotals] = useState({
-    billAmount: '0.00',
-    billTds: '0.00',
-    previousReceived: '0.00',
-    currentReceived: '0.00',
-    balance: '0.00',
-  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [curRec, setCurRec] = useState<Record<string, string>>({});
   const [jvBills, setJvBills] = useState<Record<string, ReceiptAdjustmentPayload[]>>({});
   const [jvTarget, setJvTarget] = useState<OutstandingBillRow | null>(null);
+  const [selectedBillId, setSelectedBillId] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
 
   const load = useCallback(async () => {
@@ -71,12 +79,9 @@ export const OutstandingAdjustmentDialog: React.FC<OutstandingAdjustmentDialogPr
     setLoading(true);
     setError(null);
     try {
-      const data = await getReceiptOutstandingBills({
-        partyId,
-        excludeVoucherId,
-      });
+      const data = await getReceiptOutstandingBills({ partyId, excludeVoucherId });
       setBills(data.bills);
-      setTotals(data.totals);
+      setSelectedBillId((current) => current ?? data.bills[0]?.id ?? null);
     } catch (err) {
       setBills([]);
       setError(err instanceof Error ? err.message : 'Failed to load outstanding bills.');
@@ -89,7 +94,8 @@ export const OutstandingAdjustmentDialog: React.FC<OutstandingAdjustmentDialogPr
     if (!open) return;
     const seeded: Record<string, string> = {};
     for (const allocation of initialAllocations) {
-      seeded[allocation.purchaseBillId] = String(allocation.allocatedAmount ?? '');
+      const value = toAmount(String(allocation.allocatedAmount));
+      if (value > 0) seeded[allocation.purchaseBillId] = String(allocation.allocatedAmount);
     }
     setCurRec(seeded);
 
@@ -102,32 +108,56 @@ export const OutstandingAdjustmentDialog: React.FC<OutstandingAdjustmentDialogPr
       ];
     }
     setJvBills(seededJv);
+    setSelectedBillId(null);
+    setError(null);
     void load();
   }, [open, initialAllocations, initialAdjustments, load]);
 
+  const netAdj = useCallback((billId: string) => netAdjustmentOf(jvBills[billId]), [jvBills]);
+
+  const maxCash = useCallback(
+    (bill: OutstandingBillRow) => Math.max(0, round2(toAmount(bill.balance) - netAdj(bill.id))),
+    [netAdj]
+  );
+
   const allocatedTotal = useMemo(
     () =>
-      bills.reduce((sum, bill) => {
-        const value = toAmount(curRec[bill.id] ?? '0');
-        return sum + (Number.isFinite(value) ? value : 0);
-      }, 0),
+      round2(
+        bills.reduce((sum, bill) => {
+          const value = toAmount(curRec[bill.id]);
+          return sum + (Number.isFinite(value) ? value : 0);
+        }, 0)
+      ),
     [bills, curRec]
   );
 
-  const chequeBalance = Math.max(0, receiptAmount - allocatedTotal);
+  // Cheque Balance is strictly this receipt row cash minus what this row has
+  // allocated. Journal adjustments are never treated as cash.
+  const chequeBalance = Math.max(0, round2(receiptAmount - allocatedTotal));
+
+  const totalBalance = useMemo(
+    () =>
+      round2(
+        bills.reduce((sum, bill) => {
+          const remaining = toAmount(bill.balance) - toAmount(curRec[bill.id]) - netAdj(bill.id);
+          return sum + remaining;
+        }, 0)
+      ),
+    [bills, curRec, netAdj]
+  );
 
   const handleAutoAllocate = () => {
     let remaining = receiptAmount;
     const next: Record<string, string> = { ...curRec };
     for (const bill of bills) {
-      if (remaining <= 0) {
+      const available = maxCash(bill);
+      if (remaining <= 0 || available <= 0) {
         next[bill.id] = '';
         continue;
       }
-      const balance = toAmount(bill.balance);
-      const take = Math.min(balance, remaining);
+      const take = Math.min(available, remaining);
       next[bill.id] = take > 0 ? take.toFixed(2) : '';
-      remaining -= take;
+      remaining = round2(remaining - take);
     }
     setCurRec(next);
   };
@@ -146,6 +176,26 @@ export const OutstandingAdjustmentDialog: React.FC<OutstandingAdjustmentDialogPr
       return;
     }
 
+    for (const allocation of allocations) {
+      const bill = bills.find((candidate) => candidate.id === allocation.purchaseBillId);
+      if (!bill) continue;
+      if (toAmount(allocation.allocatedAmount) > maxCash(bill) + 0.004) {
+        setError(`Bill ${bill.billNumber}: current receipt cannot exceed ${money(maxCash(bill))}.`);
+        return;
+      }
+    }
+
+    const allocatedIds = new Set(allocations.map((row) => row.purchaseBillId));
+    for (const [billId, rows] of Object.entries(jvBills)) {
+      if (rows.length > 0 && !allocatedIds.has(billId)) {
+        const bill = bills.find((candidate) => candidate.id === billId);
+        setError(
+          `Journal Voucher Auto on bill ${bill?.billNumber ?? billId} needs a cash allocation in this row.`
+        );
+        return;
+      }
+    }
+
     setApplying(true);
     setError(null);
     try {
@@ -158,8 +208,7 @@ export const OutstandingAdjustmentDialog: React.FC<OutstandingAdjustmentDialogPr
 
       const adjustments: ReceiptAdjustmentPayload[] = [];
       for (const allocation of validated.allocations) {
-        const rows = jvBills[allocation.purchaseBillId] ?? [];
-        adjustments.push(...rows);
+        adjustments.push(...(jvBills[allocation.purchaseBillId] ?? []));
       }
 
       onApply({
@@ -180,139 +229,198 @@ export const OutstandingAdjustmentDialog: React.FC<OutstandingAdjustmentDialogPr
 
   if (!open) return null;
 
-  const jvBillCurRec = jvTarget ? toAmount(curRec[jvTarget.id] ?? '') : 0;
+  const selectedBill = selectedBillId
+    ? bills.find((bill) => bill.id === selectedBillId) ?? null
+    : null;
+  const selectedItems = selectedBill?.items ?? [];
+  const selectedQty = selectedItems.reduce((sum, item) => sum + toAmount(item.quantity), 0);
+  const selectedUnits = Array.from(new Set(selectedItems.map((item) => item.unit))).join(', ');
+  const jvBillCurRec = jvTarget ? toAmount(curRec[jvTarget.id]) : 0;
+  const jvBillBalance = jvTarget ? round2(toAmount(jvTarget.balance) - jvBillCurRec) : 0;
 
   return (
     <>
-      <div className="fixed inset-0 z-[60] bg-slate-900/50 flex items-center justify-center p-2 sm:p-4">
-        <div className="bg-white rounded-lg shadow-2xl w-full max-w-6xl max-h-[94vh] flex flex-col overflow-hidden">
-          <div className="flex items-center justify-between px-3 py-2 bg-[#2c5f57] text-white">
-            <span className="text-[12.5px] font-bold uppercase tracking-wide">Outstanding Adjustment</span>
-            <button type="button" onClick={onClose} className="p-1 rounded hover:bg-white/10" aria-label="Close">
+      <div className="fixed inset-0 z-[60] bg-slate-900/50 flex items-center justify-center p-2 sm:p-3">
+        <div className="bg-white shadow-2xl w-full max-w-6xl max-h-[94vh] flex flex-col overflow-hidden border border-[#789d93]">
+          <div className="flex items-center justify-between px-2.5 py-1.5 bg-[#2c5f57] text-white">
+            <span className="text-[12px] font-bold uppercase tracking-wide">
+              Outstanding Adjustment
+            </span>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1 rounded hover:bg-white/10"
+              aria-label="Close"
+            >
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          <div className="px-3 py-2 bg-[#eef5f2] border-b border-[#c2dcd5] grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11.5px]">
-            <div>
-              <span className="font-bold text-slate-500 uppercase text-[10px]">Party Name</span>
-              <div className="font-semibold text-slate-800">{partyName || '-'}</div>
-            </div>
-            <div>
-              <span className="font-bold text-slate-500 uppercase text-[10px]">Address</span>
-              <div className="text-slate-700 truncate" title={partyAddress}>
-                {partyAddress || '-'}
+          <div className="px-2.5 py-1.5 bg-[#eef5f2] border-b border-[#c2dcd5] flex items-start justify-between gap-3 text-[11px]">
+            <div className="min-w-0 space-y-0.5">
+              <div className="truncate">
+                <span className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500">
+                  Party Name :{' '}
+                </span>
+                <span className="font-semibold text-slate-800">{partyName || '-'}</span>
+              </div>
+              <div className="truncate" title={partyAddress}>
+                <span className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500">
+                  Address :{' '}
+                </span>
+                <span className="text-slate-700">{partyAddress || '-'}</span>
               </div>
             </div>
-            <div className="sm:text-right">
-              <span className="font-bold text-slate-500 uppercase text-[10px]">Cheque Balance</span>
-              <div className="font-mono font-bold text-[13px] text-emerald-700">
+            <div className="text-right shrink-0">
+              <span className="block text-[9.5px] font-bold uppercase tracking-wider text-slate-500">
+                Cheque Balance
+              </span>
+              <span className="font-mono font-bold text-[14px] text-emerald-700">
                 {money(chequeBalance)}
-              </div>
+              </span>
             </div>
           </div>
 
           {error && (
-            <div className="flex items-center gap-1.5 bg-red-50 border-b border-red-200 text-red-700 text-[11.5px] px-3 py-1.5">
-              <TriangleAlert className="w-3.5 h-3.5" />
+            <div className="flex items-center gap-1.5 bg-red-50 border-b border-red-200 text-red-700 text-[11px] px-2.5 py-1">
+              <TriangleAlert className="w-3.5 h-3.5 shrink-0" />
               {error}
             </div>
           )}
 
           <div className="flex-1 overflow-auto">
-            <table className="w-full text-[11.5px] border-collapse">
+            <table className="w-full text-[11px] border-collapse">
               <thead className="sticky top-0 bg-[#d5e7e1] z-10">
-                <tr className="text-slate-700 text-[10px] uppercase tracking-wider">
-                  <th className="px-2 py-1.5 text-left border-b border-[#789d93] w-14">Type</th>
-                  <th className="px-2 py-1.5 text-left border-b border-[#789d93]">Book</th>
-                  <th className="px-2 py-1.5 text-left border-b border-[#789d93]">Bill No</th>
-                  <th className="px-2 py-1.5 text-left border-b border-[#789d93] w-24">Date</th>
-                  <th className="px-2 py-1.5 text-right border-b border-[#789d93] w-14">Due</th>
-                  <th className="px-2 py-1.5 text-right border-b border-[#789d93] w-24">Bill Amt</th>
-                  <th className="px-2 py-1.5 text-right border-b border-[#789d93] w-20">Bill Tds</th>
-                  <th className="px-2 py-1.5 text-right border-b border-[#789d93] w-24">PreRec</th>
-                  <th className="px-2 py-1.5 text-right border-b border-[#789d93] w-28">CurRec</th>
-                  <th className="px-2 py-1.5 text-right border-b border-[#789d93] w-24">Balance</th>
-                  <th className="px-2 py-1.5 text-center border-b border-[#789d93] w-24">J.V Req?</th>
+                <tr className="text-slate-700 text-[9.5px] uppercase tracking-wider">
+                  <th className="px-1.5 py-1 text-left border-b border-[#789d93] w-12">Type</th>
+                  <th className="px-1.5 py-1 text-left border-b border-[#789d93]">Book</th>
+                  <th className="px-1.5 py-1 text-left border-b border-[#789d93]">Bill No</th>
+                  <th className="px-1.5 py-1 text-left border-b border-[#789d93] w-[86px]">Date</th>
+                  <th className="px-1.5 py-1 text-right border-b border-[#789d93] w-10">Due</th>
+                  <th className="px-1.5 py-1 text-right border-b border-[#789d93] w-[84px]">
+                    Bill Amt
+                  </th>
+                  <th className="px-1.5 py-1 text-right border-b border-[#789d93] w-[70px]">
+                    Bill Tds
+                  </th>
+                  <th className="px-1.5 py-1 text-right border-b border-[#789d93] w-[80px]">
+                    PreRec
+                  </th>
+                  <th className="px-1.5 py-1 text-right border-b border-[#789d93] w-[86px]">
+                    CurRec
+                  </th>
+                  <th className="px-1.5 py-1 text-right border-b border-[#789d93] w-[84px]">
+                    Balance
+                  </th>
+                  <th className="px-1.5 py-1 text-center border-b border-[#789d93] w-[64px]">
+                    J.V Req?
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={11} className="px-2 py-10 text-center text-slate-500">
+                    <td colSpan={11} className="px-2 py-8 text-center text-slate-500">
                       <Loader2 className="w-5 h-5 animate-spin text-[#2c5f57] mx-auto mb-2" />
                       Loading outstanding bills...
                     </td>
                   </tr>
                 ) : bills.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="px-2 py-10 text-center text-slate-500">
-                      <p className="text-[12.5px] font-semibold text-slate-600">
+                    <td colSpan={11} className="px-2 py-8 text-center text-slate-500">
+                      <p className="text-[12px] font-semibold text-slate-600">
                         No outstanding confirmed bills for this party
                       </p>
-                      <p className="text-[11px] mt-1">
-                        Only confirmed purchase bills with a remaining balance are listed.
+                      <p className="text-[10.5px] mt-1">
+                        Use No Adjustment or Skip in O/S if this receipt should stay on account.
                       </p>
                     </td>
                   </tr>
                 ) : (
-                  bills.map((bill) => {
-                    const entered = toAmount(curRec[bill.id] ?? '');
+                  bills.map((bill, index) => {
+                    const entered = toAmount(curRec[bill.id]);
+                    const net = netAdj(bill.id);
                     const balance = toAmount(bill.balance);
-                    const remaining = balance - (Number.isFinite(entered) ? entered : 0);
+                    const remaining = round2(balance - entered - net);
                     const jvRows = jvBills[bill.id] ?? [];
+                    const isSelected = bill.id === selectedBillId;
+                    const available = maxCash(bill);
                     return (
-                      <tr key={bill.id} className="border-b border-slate-100 hover:bg-slate-50">
-                        <td className="px-2 py-1 font-mono text-[10.5px] text-slate-500">
+                      <tr
+                        key={bill.id}
+                        onClick={() => setSelectedBillId(bill.id)}
+                        className={`border-b border-slate-200 cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#d5e7e1]'
+                            : index % 2 === 0
+                              ? 'bg-white'
+                              : 'bg-[#f6faf8]'
+                        }`}
+                      >
+                        <td className="px-1.5 py-0.5 font-mono text-[10px] text-slate-500">
                           {bill.typeCode}
                         </td>
-                        <td className="px-2 py-1 truncate max-w-[140px]" title={bill.bookName ?? ''}>
+                        <td
+                          className="px-1.5 py-0.5 truncate max-w-[150px]"
+                          title={bill.bookName ?? ''}
+                        >
                           {bill.bookName ?? '-'}
                         </td>
-                        <td className="px-2 py-1 font-mono font-semibold">{bill.billNumber}</td>
-                        <td className="px-2 py-1 whitespace-nowrap">{bill.billDate}</td>
-                        <td className="px-2 py-1 text-right">{bill.dueValue ?? '-'}</td>
-                        <td className="px-2 py-1 text-right font-mono">{money(bill.billAmount)}</td>
-                        <td className="px-2 py-1 text-right font-mono">{money(bill.billTds)}</td>
-                        <td className="px-2 py-1 text-right font-mono">{money(bill.previousReceived)}</td>
-                        <td className="px-2 py-1">
+                        <td className="px-1.5 py-0.5 font-mono font-semibold">{bill.billNumber}</td>
+                        <td className="px-1.5 py-0.5 whitespace-nowrap">{bill.billDate}</td>
+                        <td className="px-1.5 py-0.5 text-right font-mono text-slate-500">
+                          {bill.dueValue ?? DASH}
+                        </td>
+                        <td className="px-1.5 py-0.5 text-right font-mono">
+                          {money(bill.billAmount)}
+                        </td>
+                        <td className="px-1.5 py-0.5 text-right font-mono">{money(bill.billTds)}</td>
+                        <td className="px-1.5 py-0.5 text-right font-mono">
+                          {money(bill.previousReceived)}
+                        </td>
+                        <td className="px-1 py-0.5">
                           <input
-                            type="number"
-                            min="0"
-                            step="0.01"
+                            type="text"
+                            inputMode="decimal"
                             value={curRec[bill.id] ?? ''}
-                            onChange={(event) =>
-                              setCurRec((prev) => ({ ...prev, [bill.id]: event.target.value }))
-                            }
-                            className="w-full h-6 px-1 text-right font-mono text-[11px] border border-slate-300 rounded focus:outline-none focus:border-[#2c5f57]"
+                            onClick={(event) => event.stopPropagation()}
+                            onChange={(event) => {
+                              const cleaned = event.target.value.replace(/[^0-9.]/g, '');
+                              setCurRec((prev) => ({ ...prev, [bill.id]: cleaned }));
+                              setSelectedBillId(bill.id);
+                            }}
+                            className="w-full h-6 px-1 text-right font-mono text-[11px] border border-slate-300 bg-white focus:outline-none focus:border-[#2c5f57]"
                             placeholder="0.00"
+                            title={`Available cash for this bill: ${money(available)}`}
                           />
                         </td>
-                        <td className="px-2 py-1 text-right font-mono font-semibold text-slate-800">
+                        <td
+                          className={`px-1.5 py-0.5 text-right font-mono font-semibold ${
+                            remaining < 0 ? 'text-red-600' : 'text-slate-800'
+                          }`}
+                        >
                           {money(remaining)}
                         </td>
-                        <td className="px-2 py-1 text-center">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (jvRows.length > 0) {
+                        <td className="px-1.5 py-0.5 text-center">
+                          <input
+                            type="checkbox"
+                            checked={jvRows.length > 0}
+                            onClick={(event) => event.stopPropagation()}
+                            onChange={(event) => {
+                              setSelectedBillId(bill.id);
+                              if (event.target.checked) {
+                                setJvTarget(bill);
+                              } else {
                                 setJvBills((prev) => {
                                   const next = { ...prev };
                                   delete next[bill.id];
                                   return next;
                                 });
-                              } else {
-                                setJvTarget(bill);
                               }
                             }}
-                            className={`px-1.5 py-0.5 rounded border text-[10px] font-bold ${
-                              jvRows.length > 0
-                                ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
-                                : 'bg-white text-slate-500 border-slate-300 hover:bg-slate-50'
-                            }`}
-                          >
-                            {jvRows.length > 0 ? `Yes (${jvRows.length})` : 'No'}
-                          </button>
+                            aria-label={`Journal voucher required for ${bill.billNumber}`}
+                            className="h-3.5 w-3.5 accent-[#2c5f57] cursor-pointer"
+                          />
                         </td>
                       </tr>
                     );
@@ -320,29 +428,65 @@ export const OutstandingAdjustmentDialog: React.FC<OutstandingAdjustmentDialogPr
                 )}
               </tbody>
               {bills.length > 0 && (
-                <tfoot>
-                  <tr className="bg-slate-100 font-bold text-slate-800">
-                    <td colSpan={5} className="px-2 py-1.5 text-right uppercase text-[10px]">
+                <tfoot className="sticky bottom-0">
+                  <tr className="bg-[#dce8e1] font-bold text-slate-800 border-t-2 border-[#789d93]">
+                    <td colSpan={5} className="px-1.5 py-1 text-right uppercase text-[9.5px]">
                       Totals
                     </td>
-                    <td className="px-2 py-1.5 text-right font-mono">{money(totals.billAmount)}</td>
-                    <td className="px-2 py-1.5 text-right font-mono">{money(totals.billTds)}</td>
-                    <td className="px-2 py-1.5 text-right font-mono">{money(totals.previousReceived)}</td>
-                    <td className="px-2 py-1.5 text-right font-mono">{money(allocatedTotal)}</td>
-                    <td className="px-2 py-1.5 text-right font-mono">{money(chequeBalance)}</td>
-                    <td className="px-2 py-1.5" />
+                    <td className="px-1.5 py-1 text-right font-mono">
+                      {money(bills.reduce((sum, bill) => sum + toAmount(bill.billAmount), 0))}
+                    </td>
+                    <td className="px-1.5 py-1 text-right font-mono">
+                      {money(bills.reduce((sum, bill) => sum + toAmount(bill.billTds), 0))}
+                    </td>
+                    <td className="px-1.5 py-1 text-right font-mono">
+                      {money(bills.reduce((sum, bill) => sum + toAmount(bill.previousReceived), 0))}
+                    </td>
+                    <td className="px-1.5 py-1 text-right font-mono">{money(allocatedTotal)}</td>
+                    <td
+                      className={`px-1.5 py-1 text-right font-mono ${
+                        totalBalance < 0 ? 'text-red-600' : ''
+                      }`}
+                    >
+                      {money(totalBalance)}
+                    </td>
+                    <td className="px-1.5 py-1" />
                   </tr>
                 </tfoot>
               )}
             </table>
           </div>
 
-          <div className="flex items-center justify-between px-3 py-2 bg-[#dce8e1] border-t border-[#789d93] text-[11px] text-slate-600 flex-wrap gap-2">
-            <div className="flex items-center gap-2">
+          {selectedItems.length > 0 && (
+            <div className="px-2.5 py-1 border-t border-[#c2dcd5] bg-[#f6faf8] text-[10.5px] text-slate-700 flex flex-wrap items-center gap-x-4 gap-y-0.5">
+              <span className="truncate">
+                <span className="font-bold uppercase tracking-wider text-slate-500 text-[9.5px]">
+                  Item Name :{' '}
+                </span>
+                {selectedItems.map((item) => item.itemName).join(', ')}
+              </span>
+              <span className="whitespace-nowrap">
+                <span className="font-bold uppercase tracking-wider text-slate-500 text-[9.5px]">
+                  Nos ={' '}
+                </span>
+                {selectedItems.length}
+              </span>
+              <span className="whitespace-nowrap">
+                <span className="font-bold uppercase tracking-wider text-slate-500 text-[9.5px]">
+                  Qty ={' '}
+                </span>
+                {money(selectedQty)}
+                {selectedUnits ? ` ${selectedUnits}` : ''}
+              </span>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between px-2.5 py-1.5 bg-[#dce8e1] border-t border-[#789d93] text-[11px] text-slate-600 flex-wrap gap-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <button
                 type="button"
                 onClick={() => void load()}
-                className="flex items-center gap-1 px-2 py-1 rounded border border-[#789d93] bg-white font-semibold"
+                className="flex items-center gap-1 px-2 py-0.5 border border-[#789d93] bg-white font-semibold hover:bg-slate-50"
               >
                 <RefreshCcw className="w-3 h-3" />
                 Refresh
@@ -350,7 +494,7 @@ export const OutstandingAdjustmentDialog: React.FC<OutstandingAdjustmentDialogPr
               <button
                 type="button"
                 onClick={handleAutoAllocate}
-                className="px-2 py-1 rounded border border-[#789d93] bg-white font-semibold"
+                className="px-2 py-0.5 border border-[#789d93] bg-white font-semibold hover:bg-slate-50"
               >
                 Auto Allocate
               </button>
@@ -363,7 +507,7 @@ export const OutstandingAdjustmentDialog: React.FC<OutstandingAdjustmentDialogPr
               <button
                 type="button"
                 onClick={onClose}
-                className="px-3 py-1 rounded border border-slate-400 bg-white font-bold text-slate-600"
+                className="px-3 py-0.5 border border-slate-400 bg-white font-bold text-slate-600 hover:bg-slate-50"
               >
                 Cancel
               </button>
@@ -371,7 +515,7 @@ export const OutstandingAdjustmentDialog: React.FC<OutstandingAdjustmentDialogPr
                 type="button"
                 onClick={handleApply}
                 disabled={applying || bills.length === 0}
-                className="px-3 py-1 rounded bg-[#2c5f57] text-white font-bold disabled:bg-slate-400 flex items-center gap-1"
+                className="px-3 py-0.5 bg-[#2c5f57] text-white font-bold disabled:bg-slate-400 hover:bg-[#204741] flex items-center gap-1"
               >
                 {applying && <Loader2 className="w-3 h-3 animate-spin" />}
                 Apply Allocation
@@ -388,13 +532,23 @@ export const OutstandingAdjustmentDialog: React.FC<OutstandingAdjustmentDialogPr
           billNumber={jvTarget.billNumber}
           billDate={jvTarget.billDate}
           billAmount={jvTarget.billAmount}
-          billBalance={jvTarget.balance}
+          billBalance={jvBillBalance.toFixed(2)}
           chequeBalance={chequeBalance.toFixed(2)}
           curReceived={jvBillCurRec.toFixed(2)}
           initialAdjustments={jvBills[jvTarget.id] ?? []}
           onClose={() => setJvTarget(null)}
           onSave={(adjustments) => {
-            setJvBills((prev) => ({ ...prev, [jvTarget.id]: adjustments }));
+            // The dialog only knows the accounts and amounts; the bill linkage
+            // belongs to this popup. Without purchaseBillId the backend would
+            // store the adjustment as a row-level entry, leaving the bill
+            // unsettled and the discount unattached to its allocation.
+            setJvBills((prev) => ({
+              ...prev,
+              [jvTarget.id]: adjustments.map((adjustment) => ({
+                ...adjustment,
+                purchaseBillId: jvTarget.id,
+              })),
+            }));
             setJvTarget(null);
           }}
         />

@@ -214,6 +214,7 @@ export const ChequeReceiptEntryPage: React.FC = () => {
   const [rows, setRows] = useState<ReceiptRow[]>(() => padRows([]));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [savedInfo, setSavedInfo] = useState<{ id: string; number: string } | null>(null);
   const [voucherId, setVoucherId] = useState<string | null>(null);
@@ -255,6 +256,23 @@ export const ChequeReceiptEntryPage: React.FC = () => {
     );
     setDirty(true);
   }, []);
+
+  const setRowError = useCallback((key: string, message: string) => {
+    setRowErrors((prev) => ({ ...prev, [key]: message }));
+  }, []);
+
+  const clearRowError = useCallback((key: string) => {
+    setRowErrors((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    setRowErrors({});
+  }, [id]);
 
   const enrichParties = useCallback(async (source: ReceiptRow[]) => {
     const codes = Array.from(
@@ -432,35 +450,40 @@ export const ChequeReceiptEntryPage: React.FC = () => {
 
   const changeAdjustmentMode = useCallback(
     (index: number, mode: BankReceiptAdjustmentMode) => {
+      const row = rows[index];
+      if (!row) return;
       if (mode === 'AGAINST_BILL') {
-        const row = rows[index];
-        if (!row || !row.partyId) {
-          setError('Select a party account before choosing Against Bill.');
+        if (!row.partyId) {
+          setRowError(row.key, 'Select a party account before choosing Against Bill.');
           return;
         }
         if (!(Number(row.amount) > 0)) {
-          setError('Enter a positive amount before choosing Against Bill.');
+          setRowError(row.key, 'Enter a positive receipt amount before choosing Against Bill.');
           return;
         }
         updateRow(index, { adjustmentMode: mode });
+        clearRowError(row.key);
         setOutstandingDialog({ row: index });
         return;
       }
       updateRow(index, { adjustmentMode: mode, allocations: [], adjustments: [] });
+      clearRowError(row.key);
     },
-    [rows, updateRow]
+    [rows, updateRow, setRowError, clearRowError]
   );
 
   const handleOutstandingApply = useCallback(
     (result: OutstandingApplyResult) => {
       if (!outstandingDialog) return;
+      const target = rows[outstandingDialog.row];
       updateRow(outstandingDialog.row, {
         allocations: result.allocations,
         adjustments: result.adjustments,
       });
+      if (target) clearRowError(target.key);
       setOutstandingDialog(null);
     },
-    [outstandingDialog, updateRow]
+    [outstandingDialog, rows, updateRow, clearRowError]
   );
   const handleSave = useCallback(async () => {
     if (savingRef.current) return;
@@ -479,28 +502,41 @@ export const ChequeReceiptEntryPage: React.FC = () => {
       return;
     }
 
-    for (const [index, row] of rows.entries()) {
+    const nextRowErrors: Record<string, string> = {};
+    for (const row of rows) {
       if (isBlankRow(row)) continue;
-      const label = `Row ${index + 1}`;
       if (!row.partyId) {
-        setError(`${label}: select a party account.`);
-        return;
+        nextRowErrors[row.key] = 'Select a party account for this receipt row.';
+        continue;
       }
       const amount = Number(row.amount);
       if (!Number.isFinite(amount) || amount <= 0) {
-        setError(`${label}: enter a positive receipt amount.`);
-        return;
+        nextRowErrors[row.key] = 'Enter a positive receipt amount.';
+        continue;
       }
       const cheque = row.chequeNumber.trim();
       if (cheque !== '' && !CHEQUE_PATTERN.test(cheque)) {
-        setError(`${label}: cheque/reference number contains invalid characters.`);
-        return;
+        nextRowErrors[row.key] = 'Cheque/reference number contains invalid characters.';
+        continue;
       }
       if (row.adjustmentMode === 'AGAINST_BILL' && row.allocations.length === 0) {
-        setError(`${label}: allocate the amount against a bill or change the adjustment mode.`);
-        return;
+        nextRowErrors[row.key] =
+          'No bill allocation has been entered. Allocate this receipt against a bill or select No Adjustment / Skip in O/S.';
+        continue;
       }
     }
+    if (Object.keys(nextRowErrors).length > 0) {
+      setRowErrors(nextRowErrors);
+      setError(null);
+      const firstKey = Object.keys(nextRowErrors)[0];
+      const firstIndex = rows.findIndex((row) => row.key === firstKey);
+      if (firstIndex >= 0) {
+        setActiveRow(firstIndex);
+        window.setTimeout(() => focusCell(firstIndex, 'party'), 0);
+      }
+      return;
+    }
+    setRowErrors({});
 
     const payload: ChequeReceiptPayload = {
       bookId,
@@ -543,7 +579,16 @@ export const ChequeReceiptEntryPage: React.FC = () => {
       savingRef.current = false;
       setSaving(false);
     }
-  }, [activeVoucherId, bookId, filledRows, narration, rows, voucherDate, voucherNumber]);
+  }, [
+    activeVoucherId,
+    bookId,
+    filledRows,
+    focusCell,
+    narration,
+    rows,
+    voucherDate,
+    voucherNumber,
+  ]);
 
   const handleClear = useCallback(() => {
     if (dirty && !window.confirm('Clear all unsaved receipt rows?')) return;
@@ -552,6 +597,7 @@ export const ChequeReceiptEntryPage: React.FC = () => {
     setNarration('');
     setSavedInfo(null);
     setError(null);
+    setRowErrors({});
     setDirty(false);
     setActiveRow(0);
   }, [dirty]);
@@ -984,18 +1030,18 @@ export const ChequeReceiptEntryPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-[#eef5f2] border-x border-slate-300 px-3 py-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2 text-[11.5px]">
-        <div>
-          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+      <div className="bg-[#eef5f2] border-x border-slate-300 px-2 py-1.5 flex flex-wrap items-end gap-x-4 gap-y-1 text-[11px]">
+        <div className="min-w-[110px]">
+          <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-500">
             Voucher No.
           </span>
-          <div className="font-mono font-bold text-[13px] text-slate-900">
+          <div className="font-mono font-bold text-[12.5px] leading-tight text-slate-900">
             {voucherNumber || 'AUTO'}
           </div>
         </div>
         <div>
           <label
-            className="block text-[10px] font-bold uppercase tracking-wider text-slate-500"
+            className="block text-[9px] font-bold uppercase tracking-wider text-slate-500"
             htmlFor="voucherDate"
           >
             Date
@@ -1008,27 +1054,27 @@ export const ChequeReceiptEntryPage: React.FC = () => {
               setVoucherDate(event.target.value);
               setDirty(true);
             }}
-            className="w-full h-7 px-1.5 text-[11.5px] bg-white border border-slate-300 rounded focus:outline-none focus:border-[#2c5f57]"
+            className="h-6 px-1 text-[11px] bg-white border border-slate-300 focus:outline-none focus:border-[#2c5f57]"
           />
         </div>
         <div>
-          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-500">
             Bank A/C No.
           </span>
-          <div className="font-mono text-slate-800">
+          <div className="font-mono leading-tight text-slate-800">
             {book?.bankAccount.bankAccountNumber ?? (
               <span className="text-amber-700">Not configured</span>
             )}
           </div>
         </div>
-        <div>
-          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+        <div className="min-w-[170px]">
+          <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-500">
             A/C Name / Balance
           </span>
-          <div className="text-slate-800">
+          <div className="leading-tight text-slate-800">
             {book?.bankAccount.bankName ?? book?.bankAccount.accountName ?? '-'}
             <span
-              className={`ml-2 font-mono font-bold ${
+              className={`ml-1.5 font-mono font-bold ${
                 book?.balance.nature === 'Cr' ? 'text-red-600' : 'text-emerald-700'
               }`}
             >
@@ -1036,19 +1082,19 @@ export const ChequeReceiptEntryPage: React.FC = () => {
             </span>
           </div>
         </div>
-        <div className="xl:col-span-2">
+        <div className="min-w-[170px]">
           <label
-            className="block text-[10px] font-bold uppercase tracking-wider text-slate-500"
+            className="block text-[9px] font-bold uppercase tracking-wider text-slate-500"
             htmlFor="bookSelect"
           >
-            Bank Receipt Book
+            Book
           </label>
           <select
             id="bookSelect"
             value={bookId}
             onChange={(event) => void handleBookChange(event.target.value)}
             disabled={Boolean(activeVoucherId)}
-            className="w-full h-7 px-1.5 text-[11.5px] bg-white border border-slate-300 rounded focus:outline-none focus:border-[#2c5f57] disabled:bg-slate-100 disabled:text-slate-500"
+            className="h-6 px-1 text-[11px] bg-white border border-slate-300 focus:outline-none focus:border-[#2c5f57] disabled:bg-slate-100 disabled:text-slate-500"
           >
             <option value="">Select a book</option>
             {books.map((candidate) => (
@@ -1059,9 +1105,9 @@ export const ChequeReceiptEntryPage: React.FC = () => {
             ))}
           </select>
         </div>
-        <div className="xl:col-span-2">
+        <div className="flex-1 min-w-[180px]">
           <label
-            className="block text-[10px] font-bold uppercase tracking-wider text-slate-500"
+            className="block text-[9px] font-bold uppercase tracking-wider text-slate-500"
             htmlFor="narration"
           >
             Narration
@@ -1075,12 +1121,12 @@ export const ChequeReceiptEntryPage: React.FC = () => {
             }}
             maxLength={250}
             placeholder="Optional voucher narration"
-            className="w-full h-7 px-1.5 text-[11.5px] bg-white border border-slate-300 rounded focus:outline-none focus:border-[#2c5f57]"
+            className="w-full h-6 px-1 text-[11px] bg-white border border-slate-300 focus:outline-none focus:border-[#2c5f57]"
           />
         </div>
       </div>
 
-      {error && (
+      {error && !dialogOpen && (
         <div className="bg-red-50 border-x border-b border-red-300 text-red-800 px-3 py-1.5 text-[11.5px] font-semibold flex items-start gap-1.5">
           <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
           <span>{error}</span>
@@ -1157,13 +1203,14 @@ export const ChequeReceiptEntryPage: React.FC = () => {
                   (sum, allocation) => sum + (Number(allocation.allocatedAmount) || 0),
                   0
                 );
+                const rowError = rowErrors[row.key];
                 return (
-                  <tr
-                    key={row.key}
-                    className={
-                      isActive ? 'bg-[#e3f1ec]' : index % 2 === 0 ? 'bg-white' : 'bg-slate-50'
-                    }
-                  >
+                  <React.Fragment key={row.key}>
+                    <tr
+                      className={
+                        isActive ? 'bg-[#e3f1ec]' : index % 2 === 0 ? 'bg-white' : 'bg-slate-50'
+                      }
+                    >
                     <td className="border border-slate-200 px-1 py-0.5 text-center font-mono text-[10.5px] text-slate-500">
                       {index + 1}
                     </td>
@@ -1181,7 +1228,10 @@ export const ChequeReceiptEntryPage: React.FC = () => {
                               partyCode: '',
                               partyAddress: '',
                               partyBalance: null,
+                              allocations: [],
+                              adjustments: [],
                             });
+                            clearRowError(row.key);
                           }}
                           onKeyDown={(event) => {
                             if (event.key === 'Enter') {
@@ -1270,7 +1320,18 @@ export const ChequeReceiptEntryPage: React.FC = () => {
                         onFocus={() => setActiveRow(index)}
                         onChange={(event) => {
                           const cleaned = event.target.value.replace(/[^0-9.]/g, '');
-                          updateRow(index, { amount: cleaned });
+                          const nextAmount = Number(cleaned) || 0;
+                          const allocated = row.allocations.reduce(
+                            (sum, allocation) => sum + (Number(allocation.allocatedAmount) || 0),
+                            0
+                          );
+                          const patch: Partial<ReceiptRow> = { amount: cleaned };
+                          if (nextAmount + 0.004 < allocated) {
+                            patch.allocations = [];
+                            patch.adjustments = [];
+                          }
+                          updateRow(index, patch);
+                          clearRowError(row.key);
                         }}
                         onKeyDown={(event) => handleCellKeyDown(event, index, 'amount')}
                         className="w-full h-6 px-1 bg-transparent text-right font-mono text-[11.5px] focus:outline-none focus:ring-1 focus:ring-[#2c5f57]"
@@ -1320,7 +1381,18 @@ export const ChequeReceiptEntryPage: React.FC = () => {
                         <X className="w-3 h-3" />
                       </button>
                     </td>
-                  </tr>
+                    </tr>
+                    {rowError && (
+                      <tr className="bg-red-50">
+                        <td
+                          colSpan={8}
+                          className="border border-red-200 px-2 py-0.5 text-[10.5px] font-semibold text-red-700"
+                        >
+                          Row {index + 1} {'\u2014'} {rowError}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </tbody>
