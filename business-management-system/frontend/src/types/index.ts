@@ -432,6 +432,14 @@ export interface BankVoucher {
   debitAccount: VoucherAccountRef;
   creditAccount: VoucherAccountRef;
   journalLines?: BankVoucherJournalLine[];
+  /** Phase 18 (additive): receipt book that produced this voucher, if any. */
+  receiptBook?: { id: string; bookName: string; prefix: string } | null;
+  /** Phase 18 (additive): number of party rows in the newest revision. */
+  receiptRowCount?: number;
+  /** Phase 18 (additive): every party on the newest revision (register view). */
+  receiptParties?: Array<{ id: string; partyName: string; partyCode: string }>;
+  /** Phase 18 (additive): multi-row cheque receipt detail (detail view only). */
+  receiptLines?: ReceiptVoucherLine[];
 }
 
 export interface BankVoucherLookupBankAccount {
@@ -522,4 +530,260 @@ export interface BankVoucherListParams {
   sortOrder?: 'asc' | 'desc';
   page?: number;
   limit?: number;
+}
+// =============================================================
+// Phase 18: Bank Receipt Entry (Cheque Receipt)
+// =============================================================
+
+export type BankReceiptAdjustmentMode = 'NO_ADJUSTMENT' | 'AGAINST_BILL' | 'SKIP_IN_OS';
+export type BankReceiptDrCr = 'DR' | 'CR';
+export type BankReceiptCalculationType = 'AMT' | 'INT' | 'TDS';
+export type BankReceiptAllocationStatus = 'ACTIVE' | 'REVERSED';
+
+export const RECEIPT_ADJUSTMENT_MODE_LABELS: Record<BankReceiptAdjustmentMode, string> = {
+  NO_ADJUSTMENT: 'No Adjustment',
+  AGAINST_BILL: 'Against Bill',
+  SKIP_IN_OS: 'Skip in O/S',
+};
+
+export const RECEIPT_ADJUSTMENT_MODE_ORDER: BankReceiptAdjustmentMode[] = [
+  'NO_ADJUSTMENT',
+  'AGAINST_BILL',
+  'SKIP_IN_OS',
+];
+
+export const CALCULATION_TYPE_LABELS: Record<BankReceiptCalculationType, string> = {
+  AMT: 'Amt',
+  INT: 'Int',
+  TDS: 'Tds',
+};
+
+export interface SignedLedgerBalance {
+  amount: string;
+  nature: 'Dr' | 'Cr';
+  signed: string;
+}
+
+export interface BankReceiptBookAccount {
+  id: string;
+  accountCode: string;
+  accountName: string;
+  accountGroup: string;
+  bankName: string | null;
+  branchName: string | null;
+  bankAccountNumber: string | null;
+  isActive: boolean;
+}
+
+export interface BankReceiptBook {
+  id: string;
+  prefix: string;
+  bookName: string;
+  bankAccountLedgerId: string;
+  isActive: boolean;
+  bankAccount: BankReceiptBookAccount;
+  balance: SignedLedgerBalance;
+}
+
+export interface BankReceiptBookPayload {
+  prefix?: string | null;
+  bookName?: string;
+  bankAccountLedgerId?: string;
+  isActive?: boolean;
+}
+
+export interface BankInstrument {
+  id: string;
+  code: string;
+  description: string;
+  isActive: boolean;
+}
+
+export interface BankInstrumentPayload {
+  code?: string;
+  description?: string;
+  isActive?: boolean;
+}
+
+export interface ReceiptPartyLookup {
+  id: string;
+  partyName: string;
+  partyCode: string;
+  partyType: string;
+  gstin: string | null;
+  panNumber: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  phone: string | null;
+  partyGroupName: string | null;
+  ledgerAccountId: string | null;
+  brokerName: string | null;
+  salespersonName: string | null;
+  collectionName: string | null;
+  personName: string | null;
+  balance: SignedLedgerBalance;
+}
+
+export interface ReceiptAdjustmentAccount {
+  id: string;
+  accountCode: string;
+  accountName: string;
+  accountGroup: string;
+  partyName: string | null;
+  address: string | null;
+  balance: SignedLedgerBalance;
+}
+
+export interface OutstandingBillRow {
+  id: string;
+  sourceDocumentType: string;
+  typeCode: string;
+  bookName: string | null;
+  billNumber: string;
+  billDate: string;
+  dueValue: number | null;
+  billAmount: string;
+  billTds: string;
+  previousReceived: string;
+  currentReceived: string;
+  balance: string;
+  jvRequired: boolean;
+}
+
+export interface OutstandingBillsResponse {
+  party: {
+    id: string;
+    partyName: string;
+    partyCode: string;
+    address: string | null;
+    city: string | null;
+    state: string | null;
+    gstin: string | null;
+    phone: string | null;
+  };
+  bills: OutstandingBillRow[];
+  totals: {
+    billAmount: string;
+    billTds: string;
+    previousReceived: string;
+    currentReceived: string;
+    balance: string;
+  };
+}
+
+export interface ReceiptAllocationPayload {
+  purchaseBillId: string;
+  allocatedAmount: string | number;
+}
+
+export interface ReceiptAdjustmentPayload {
+  purchaseBillId?: string | null;
+  adjustmentLedgerAccountId: string;
+  calculationType?: BankReceiptCalculationType;
+  interestPercent?: string | number | null;
+  dueValue?: number | string | null;
+  tdsPercent?: string | number | null;
+  adjustmentAmount: string | number;
+  drCr: BankReceiptDrCr;
+  note?: string | null;
+}
+
+export interface ReceiptLinePayload {
+  partyId: string;
+  bankInstrumentId?: string | null;
+  bankNameCode?: string | null;
+  chequeNumber?: string | null;
+  description?: string | null;
+  amount: string | number;
+  adjustmentMode: BankReceiptAdjustmentMode;
+  allocations?: ReceiptAllocationPayload[];
+  adjustments?: ReceiptAdjustmentPayload[];
+}
+
+export interface ChequeReceiptPayload {
+  bookId: string;
+  voucherDate: string;
+  narration?: string | null;
+  remarks?: string | null;
+  lines: ReceiptLinePayload[];
+}
+
+export interface ReceiptAllocationValidation {
+  allocations: Array<{
+    purchaseBillId: string;
+    billNumber: string;
+    allocatedAmount: string;
+    balanceAfter: string;
+  }>;
+  allocatedTotal: string;
+  chequeBalance: string;
+}
+
+export interface ReceiptAdjustmentPreview {
+  lines: Array<{
+    accountName: string;
+    accountCode: string;
+    drCr: BankReceiptDrCr;
+    amount: string;
+  }>;
+  totalDebit: string;
+  totalCredit: string;
+  balanced: boolean;
+  partyEffect: { drCr: BankReceiptDrCr; amount: string };
+}
+
+export interface ReceiptVoucherLineAllocation {
+  id: string;
+  purchaseBillId: string;
+  sourceDocumentNumber: string;
+  billDate: string;
+  billAmount: string;
+  billTds: string;
+  previousReceived: string;
+  allocatedAmount: string;
+  balanceAfter: string;
+  status: BankReceiptAllocationStatus;
+  adjustments: Array<{
+    id: string;
+    adjustmentLedgerAccount: { id: string; accountCode: string; accountName: string };
+    calculationType: BankReceiptCalculationType;
+    interestPercent: string | null;
+    dueValue: number | null;
+    tdsPercent: string | null;
+    adjustmentAmount: string;
+    drCr: BankReceiptDrCr;
+    note: string | null;
+    status: BankReceiptAllocationStatus;
+  }>;
+}
+
+export interface ReceiptVoucherLine {
+  id: string;
+  rowNumber: number;
+  party: { id: string; partyName: string; partyCode: string } | null;
+  bankNameCode: string | null;
+  bankInstrument: { id: string; code: string; description: string } | null;
+  chequeNumber: string | null;
+  description: string | null;
+  amount: string;
+  adjustmentMode: BankReceiptAdjustmentMode;
+  allocations: ReceiptVoucherLineAllocation[];
+}
+
+export interface ReceiptBookSummary {
+  id: string;
+  bookName: string;
+  prefix: string;
+}
+
+export interface ReceiptNextNumber {
+  voucherNumber: string;
+  bookId: string;
+  bookName: string;
+}
+
+export interface ReceiptNeighbours {
+  previous: { id: string; voucherNumber: string } | null;
+  next: { id: string; voucherNumber: string } | null;
 }

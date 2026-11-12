@@ -484,6 +484,29 @@ export const REPORT_MENU_ITEMS: MenuItem[] = [
 ];
 
 // -------------------------------------------------------------
+// Bank Slip / Receipt Menu Hierarchy (Phase 18)
+// Mirrors TRANSACTION > 4. Bank Slip / Receipt from the reference.
+// Return Cheque is intentionally absent: the module does not exist in
+// this build, so no dead menu item is created for it.
+// -------------------------------------------------------------
+export const BANK_SLIP_MENU_ITEMS: MenuItem[] = [
+  {
+    title: '1. Cheque Receipt',
+    description: 'Multi-row cheque receipt entry with bill-wise outstanding adjustment.',
+    plannedPhase: 'Phase 18',
+    implemented: true,
+    route: '/transactions/bank-receipts/books',
+  },
+  {
+    title: '3. Reports',
+    description: 'Bank Receipt register and reports for saved cheque receipts.',
+    plannedPhase: 'Phase 12 & 18',
+    implemented: true,
+    route: '/transactions/bank-receipts',
+  },
+];
+
+// -------------------------------------------------------------
 // Route -> dashboard module resolution (usage tracking)
 // -------------------------------------------------------------
 const pathMatchesPrefix = (pathname: string, prefix: string): boolean =>

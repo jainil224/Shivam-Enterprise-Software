@@ -71,6 +71,11 @@ model Company {
   orderStatusHistory   OrderStatusHistory[]
   orderFulfilmentLinks OrderFulfilmentLink[]
   orderSequences       OrderSequence[]
+  bankReceiptBooks     BankReceiptBook[]
+  bankInstruments      BankInstrumentMaster[]
+  bankVoucherLines     BankVoucherLine[]
+  bankReceiptAllocations BankReceiptBillAllocation[]
+  bankReceiptAdjustments BankReceiptAdjustmentLine[]
 
   @@map("companies")
 }
@@ -107,6 +112,10 @@ model FinancialYear {
   bankReconciliationMarks      BankReconciliationMark[]
   bankReconciliationAudits     BankReconciliationAudit[]
   bankReconciliationStatements BankReconciliationStatement[]
+  bankReceiptBooks             BankReceiptBook[]
+  bankVoucherLines             BankVoucherLine[]
+  bankReceiptAllocations       BankReceiptBillAllocation[]
+  bankReceiptAdjustments       BankReceiptAdjustmentLine[]
 
   @@unique([companyId, id])
   @@unique([companyId, yearName])
@@ -159,6 +168,7 @@ model Party {
   debitNotes            DebitNote[]
   salesOrders           SalesOrder[]
   purchaseOrders        PurchaseOrder[]
+  bankVoucherLines      BankVoucherLine[]
 
   @@unique([companyId, id])
   @@unique([companyId, partyCode])
@@ -555,6 +565,7 @@ model PurchaseBill {
   sourceChallan        ProductionReceive? @relation("ChallanToPurchaseBill", fields: [sourceChallanId], references: [id], onDelete: Restrict)
   items                PurchaseBillItem[]
   debitNoteAdjustments DebitNote[]
+  bankReceiptAllocations BankReceiptBillAllocation[]
 
   @@unique([companyId, financialYearId, billNumber])
   @@index([companyId, financialYearId, billDate])
@@ -671,6 +682,9 @@ model LedgerAccount {
   bankReconciliationAudits     BankReconciliationAudit[]     @relation("BankReconciliationAuditLedger")
   bankReconciliationStatements BankReconciliationStatement[] @relation("BankReconciliationStatementLedger")
   bankBookSavedReports         BankBookSavedReport[]         @relation("BankBookSavedReportLedger")
+  bankReceiptBooks             BankReceiptBook[]             @relation("BankReceiptBookLedger")
+  bankVoucherLinePartyLedgers  BankVoucherLine[]             @relation("BankReceiptLinePartyLedger")
+  bankReceiptAdjustmentLedgers BankReceiptAdjustmentLine[]   @relation("BankReceiptAdjustmentLedger")
 
   @@unique([companyId, id])
   @@unique([companyId, accountCode])
@@ -690,6 +704,7 @@ model BankVoucher {
   partyId              String?           @map("party_id")
   counterpartyLedgerId String            @map("counterparty_ledger_id")
   bankAccountLedgerId  String            @map("bank_account_ledger_id")
+  bankReceiptBookId    String?           @map("bank_receipt_book_id")
   paymentMode          PaymentMode       @map("payment_mode")
   amount               Decimal           @db.Decimal(15, 2)
   referenceNumber      String?           @map("reference_number")
@@ -712,6 +727,8 @@ model BankVoucher {
   counterpartyLedger LedgerAccount @relation("CounterpartyVoucher", fields: [companyId, counterpartyLedgerId], references: [companyId, id], onDelete: Restrict)
   bankAccountLedger  LedgerAccount @relation("BankAccountVoucher", fields: [companyId, bankAccountLedgerId], references: [companyId, id], onDelete: Restrict)
   journalLines       JournalLine[]
+  bankReceiptBook    BankReceiptBook? @relation(fields: [companyId, bankReceiptBookId], references: [companyId, id], onDelete: Restrict)
+  lines              BankVoucherLine[]
 
   @@unique([companyId, financialYearId, voucherType, voucherNumber])
   @@unique([companyId, id])
@@ -1596,4 +1613,175 @@ model BankBookSavedReport {
   @@unique([companyId, reportName])
   @@index([companyId, bankLedgerAccountId])
   @@map("bank_book_saved_reports")
+}
+
+
+// ---------------------------------------------------------------------------
+// Phase 18 - Bank Receipt Entry (Cheque Receipt).
+// One BankVoucher header carries many receipt rows (BankVoucherLine). Each row
+// posts to exactly one party ledger, may allocate against real PurchaseBill
+// rows, and may carry Journal Voucher Auto adjustment lines. Nothing here
+// duplicates the Phase 12 double-entry engine: JournalLine remains the single
+// source of posted accounting truth.
+// ---------------------------------------------------------------------------
+
+enum BankReceiptAdjustmentMode {
+  NO_ADJUSTMENT
+  AGAINST_BILL
+  SKIP_IN_OS
+}
+
+enum BankReceiptAllocationStatus {
+  ACTIVE
+  REVERSED
+}
+
+enum BankReceiptDrCr {
+  DR
+  CR
+}
+
+enum BankReceiptCalculationType {
+  AMT
+  INT
+  TDS
+}
+
+model BankReceiptBook {
+  id                  String   @id @default(uuid())
+  companyId           String   @map("company_id")
+  financialYearId     String   @map("financial_year_id")
+  prefix              String
+  bookName            String   @map("book_name")
+  bankAccountLedgerId String   @map("bank_account_ledger_id")
+  isActive            Boolean  @default(true) @map("is_active")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  company           Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  financialYear     FinancialYear @relation(fields: [companyId, financialYearId], references: [companyId, id], onDelete: Cascade)
+  bankAccountLedger LedgerAccount @relation("BankReceiptBookLedger", fields: [companyId, bankAccountLedgerId], references: [companyId, id], onDelete: Restrict)
+  vouchers          BankVoucher[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, financialYearId, id])
+  @@unique([companyId, financialYearId, bookName])
+  @@unique([companyId, financialYearId, prefix])
+  @@index([companyId, financialYearId, isActive])
+  @@map("bank_receipt_books")
+}
+
+model BankInstrumentMaster {
+  id          String   @id @default(uuid())
+  companyId   String   @map("company_id")
+  code        String
+  description String
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  company Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lines   BankVoucherLine[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, code])
+  @@index([companyId, isActive])
+  @@map("bank_instruments")
+}
+
+model BankVoucherLine {
+  id                    String                   @id @default(uuid())
+  companyId             String                   @map("company_id")
+  financialYearId       String                   @map("financial_year_id")
+  bankVoucherId         String                   @map("bank_voucher_id")
+  rowNumber             Int                      @map("row_number")
+  revision              Int                      @default(1)
+  partyId               String                   @map("party_id")
+  partyLedgerAccountId  String                   @map("party_ledger_account_id")
+  bankInstrumentId      String?                  @map("bank_instrument_id")
+  bankNameCode          String?                  @map("bank_name_code")
+  chequeNumber          String?                  @map("cheque_number")
+  description           String?
+  amount                Decimal                  @db.Decimal(15, 2)
+  adjustmentMode        BankReceiptAdjustmentMode @default(NO_ADJUSTMENT) @map("adjustment_mode")
+  createdAt             DateTime                 @default(now()) @map("created_at")
+  updatedAt             DateTime                 @updatedAt @map("updated_at")
+
+  company              Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  financialYear        FinancialYear @relation(fields: [companyId, financialYearId], references: [companyId, id], onDelete: Restrict)
+  bankVoucher          BankVoucher   @relation(fields: [companyId, bankVoucherId], references: [companyId, id], onDelete: Cascade)
+  party                Party         @relation(fields: [companyId, partyId], references: [companyId, id], onDelete: Restrict)
+  partyLedgerAccount   LedgerAccount @relation("BankReceiptLinePartyLedger", fields: [companyId, partyLedgerAccountId], references: [companyId, id], onDelete: Restrict)
+  bankInstrument       BankInstrumentMaster? @relation(fields: [companyId, bankInstrumentId], references: [companyId, id], onDelete: Restrict)
+  allocations          BankReceiptBillAllocation[]
+  adjustments          BankReceiptAdjustmentLine[]
+
+  @@unique([companyId, id])
+  @@unique([bankVoucherId, revision, rowNumber])
+  @@index([companyId, financialYearId, bankVoucherId])
+  @@index([companyId, partyId])
+  @@map("bank_voucher_lines")
+}
+
+model BankReceiptBillAllocation {
+  id                   String                        @id @default(uuid())
+  companyId            String                        @map("company_id")
+  financialYearId      String                        @map("financial_year_id")
+  bankVoucherLineId    String                        @map("bank_voucher_line_id")
+  purchaseBillId       String                        @map("purchase_bill_id")
+  sourceDocumentType   String                        @default("PURCHASE_BILL") @map("source_document_type")
+  sourceDocumentNumber String                        @map("source_document_number")
+  billDate             DateTime                      @map("bill_date")
+  dueValue             Int?                          @map("due_value")
+  billAmount           Decimal                       @db.Decimal(15, 2) @map("bill_amount")
+  billTds              Decimal                       @default(0.00) @db.Decimal(15, 2) @map("bill_tds")
+  previousReceived     Decimal                       @default(0.00) @db.Decimal(15, 2) @map("previous_received")
+  allocatedAmount      Decimal                       @db.Decimal(15, 2) @map("allocated_amount")
+  balanceAfter         Decimal                       @db.Decimal(15, 2) @map("balance_after")
+  status               BankReceiptAllocationStatus   @default(ACTIVE)
+  revision             Int                           @default(1)
+  createdAt            DateTime                      @default(now()) @map("created_at")
+  updatedAt            DateTime                      @updatedAt @map("updated_at")
+
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  financialYear     FinancialYear     @relation(fields: [companyId, financialYearId], references: [companyId, id], onDelete: Restrict)
+  bankVoucherLine   BankVoucherLine   @relation(fields: [companyId, bankVoucherLineId], references: [companyId, id], onDelete: Cascade)
+  purchaseBill      PurchaseBill      @relation(fields: [purchaseBillId], references: [id], onDelete: Restrict)
+  adjustments       BankReceiptAdjustmentLine[]
+
+  @@unique([companyId, id])
+  @@unique([bankVoucherLineId, purchaseBillId, revision])
+  @@index([companyId, financialYearId, purchaseBillId, status])
+  @@map("bank_receipt_bill_allocations")
+}
+
+model BankReceiptAdjustmentLine {
+  id                        String                      @id @default(uuid())
+  companyId                 String                      @map("company_id")
+  financialYearId           String                      @map("financial_year_id")
+  bankVoucherLineId         String                      @map("bank_voucher_line_id")
+  allocationId              String?                     @map("allocation_id")
+  adjustmentLedgerAccountId String                      @map("adjustment_ledger_account_id")
+  calculationType           BankReceiptCalculationType  @default(AMT) @map("calculation_type")
+  interestPercent           Decimal?                    @db.Decimal(5, 2) @map("interest_percent")
+  dueValue                  Int?                        @map("due_value")
+  tdsPercent                Decimal?                    @db.Decimal(5, 2) @map("tds_percent")
+  adjustmentAmount          Decimal                     @db.Decimal(15, 2) @map("adjustment_amount")
+  drCr                      BankReceiptDrCr             @map("dr_cr")
+  note                      String?
+  status                    BankReceiptAllocationStatus @default(ACTIVE)
+  revision                  Int                         @default(1)
+  createdAt                 DateTime                    @default(now()) @map("created_at")
+  updatedAt                 DateTime                    @updatedAt @map("updated_at")
+
+  company                 Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  financialYear           FinancialYear           @relation(fields: [companyId, financialYearId], references: [companyId, id], onDelete: Restrict)
+  bankVoucherLine         BankVoucherLine         @relation(fields: [companyId, bankVoucherLineId], references: [companyId, id], onDelete: Cascade)
+  allocation              BankReceiptBillAllocation? @relation(fields: [companyId, allocationId], references: [companyId, id], onDelete: Cascade)
+  adjustmentLedgerAccount LedgerAccount           @relation("BankReceiptAdjustmentLedger", fields: [companyId, adjustmentLedgerAccountId], references: [companyId, id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@index([companyId, financialYearId, bankVoucherLineId])
+  @@index([companyId, adjustmentLedgerAccountId])
+  @@map("bank_receipt_adjustment_lines")
 }

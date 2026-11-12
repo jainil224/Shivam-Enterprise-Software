@@ -131,6 +131,48 @@ export interface BankVoucherView {
     narration: string | null;
     ledgerAccount: VoucherAccountRef;
   }>;
+  /** Phase 18 (additive): receipt book that produced this voucher, if any. */
+  receiptBook?: { id: string; bookName: string; prefix: string } | null;
+  /** Phase 18 (additive): number of party rows in the newest revision. */
+  receiptRowCount?: number;
+  /** Phase 18 (additive): every party on the newest revision (register view). */
+  receiptParties?: Array<{ id: string; partyName: string; partyCode: string }>;
+  /** Phase 18 (additive): multi-row cheque receipt detail (detail view only). */
+  receiptLines?: Array<{
+    id: string;
+    rowNumber: number;
+    party: { id: string; partyName: string; partyCode: string } | null;
+    bankNameCode: string | null;
+    bankInstrument: { id: string; code: string; description: string } | null;
+    chequeNumber: string | null;
+    description: string | null;
+    amount: string;
+    adjustmentMode: string;
+    allocations: Array<{
+      id: string;
+      purchaseBillId: string;
+      sourceDocumentNumber: string;
+      billDate: string;
+      billAmount: string;
+      billTds: string;
+      previousReceived: string;
+      allocatedAmount: string;
+      balanceAfter: string;
+      status: string;
+      adjustments: Array<{
+        id: string;
+        adjustmentLedgerAccount: { id: string; accountCode: string; accountName: string };
+        calculationType: string;
+        interestPercent: string | null;
+        dueValue: number | null;
+        tdsPercent: string | null;
+        adjustmentAmount: string;
+        drCr: string;
+        note: string | null;
+        status: string;
+      }>;
+    }>;
+  }>;
 }
 
 export interface BankVoucherListResponse {
@@ -695,6 +737,79 @@ export class BankVoucherService {
       }));
     }
 
+    // Phase 18 (additive): receipt book + multi-row detail.
+    view.receiptBook = voucher.bankReceiptBook
+      ? {
+          id: voucher.bankReceiptBook.id,
+          bookName: voucher.bankReceiptBook.bookName,
+          prefix: voucher.bankReceiptBook.prefix,
+        }
+      : null;
+
+    if ('lines' in voucher && Array.isArray(voucher.lines)) {
+      const lines = voucher.lines;
+      if (lines.length > 0) {
+        const latestRevision = lines.reduce((max, line) => Math.max(max, line.revision), 0);
+        const current = lines.filter((line) => line.revision === latestRevision);
+        view.receiptRowCount = current.length;
+        view.receiptLines = current.map((line) => ({
+          id: line.id,
+          rowNumber: line.rowNumber,
+          party: line.party
+            ? {
+                id: line.party.id,
+                partyName: line.party.partyName,
+                partyCode: line.party.partyCode,
+              }
+            : null,
+          bankNameCode: line.bankNameCode,
+          bankInstrument: line.bankInstrument
+            ? {
+                id: line.bankInstrument.id,
+                code: line.bankInstrument.code,
+                description: line.bankInstrument.description,
+              }
+            : null,
+          chequeNumber: line.chequeNumber,
+          description: line.description,
+          amount: decimalFixed(line.amount),
+          adjustmentMode: line.adjustmentMode,
+          allocations: line.allocations.map((allocation) => ({
+            id: allocation.id,
+            purchaseBillId: allocation.purchaseBillId,
+            sourceDocumentNumber: allocation.sourceDocumentNumber,
+            billDate: toDateKey(allocation.billDate),
+            billAmount: decimalFixed(allocation.billAmount),
+            billTds: decimalFixed(allocation.billTds),
+            previousReceived: decimalFixed(allocation.previousReceived),
+            allocatedAmount: decimalFixed(allocation.allocatedAmount),
+            balanceAfter: decimalFixed(allocation.balanceAfter),
+            status: allocation.status,
+            adjustments: allocation.adjustments.map((adjustment) => ({
+              id: adjustment.id,
+              adjustmentLedgerAccount: {
+                id: adjustment.adjustmentLedgerAccount.id,
+                accountCode: adjustment.adjustmentLedgerAccount.accountCode,
+                accountName: adjustment.adjustmentLedgerAccount.accountName,
+              },
+              calculationType: adjustment.calculationType,
+              interestPercent:
+                adjustment.interestPercent === null
+                  ? null
+                  : decimalFixed(adjustment.interestPercent),
+              dueValue: adjustment.dueValue,
+              tdsPercent:
+                adjustment.tdsPercent === null ? null : decimalFixed(adjustment.tdsPercent),
+              adjustmentAmount: decimalFixed(adjustment.adjustmentAmount),
+              drCr: adjustment.drCr,
+              note: adjustment.note,
+              status: adjustment.status,
+            })),
+          })),
+        }));
+      }
+    }
+
     return view;
   }
   async getLookups(companyId: string, financialYearId: string, voucherType: BankVoucherType) {
@@ -843,8 +958,23 @@ export class BankVoucherService {
       limit,
     });
 
+    const receiptIds = result.items
+      .filter((voucher) => voucher.voucherType === 'RECEIPT')
+      .map((voucher) => voucher.id);
+    const [rowCounts, partyMap] = await Promise.all([
+      repo.latestReceiptRowCounts(receiptIds),
+      repo.latestReceiptParties(receiptIds),
+    ]);
+
     return {
-      items: result.items.map((voucher) => this.serialize(voucher)),
+      items: result.items.map((voucher) => {
+        const view = this.serialize(voucher);
+        if (voucher.voucherType === 'RECEIPT') {
+          view.receiptRowCount = rowCounts.get(voucher.id) ?? 1;
+          view.receiptParties = partyMap.get(voucher.id) ?? [];
+        }
+        return view;
+      }),
       total: result.total,
       page,
       limit,
@@ -956,6 +1086,17 @@ export class BankVoucherService {
       }
       if (existing.status === 'CANCELLED') {
         conflictError('A cancelled voucher cannot be edited.');
+      }
+
+      // Phase 18: a multi-row cheque receipt must be edited through its own
+      // screen so allocations and adjustments stay consistent.
+      if (voucherType === 'RECEIPT') {
+        const rowCount = await repo.rowCountForRevision(id, existing.revision);
+        if (rowCount > 1) {
+          conflictError(
+            'This cheque receipt contains multiple party rows. Edit it from the Cheque Receipt screen.'
+          );
+        }
       }
 
       const resolved = await this.resolvePayload(tx, context, voucherType, payload, id);
@@ -1091,6 +1232,12 @@ export class BankVoucherService {
         }));
 
       await repo.insertJournalLines(tx, reversalLines);
+
+      // Phase 18: cancelled receipt releases its bill allocations so the
+      // outstanding bills become collectable again.
+      if (voucherType === 'RECEIPT') {
+        await repo.releaseReceiptAllocations(tx, id);
+      }
 
       await repo.updateVoucher(tx, id, {
         status: 'CANCELLED',

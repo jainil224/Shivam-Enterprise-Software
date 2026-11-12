@@ -20,7 +20,7 @@ import {
 import { useCompany } from '../context/CompanyContext';
 import { useModulePreferences } from '../hooks/useModulePreferences';
 import { DASHBOARD_SHORTCUTS, MANUFACTURING_MENU_ITEMS, ShortcutItem } from '../config/navigation';
-import { REPORT_MENU_ITEMS } from '../config/navigation';
+import { BANK_SLIP_MENU_ITEMS, REPORT_MENU_ITEMS } from '../config/navigation';
 import { ReportMenuPanel } from './ReportMenuPanel';
 
 interface TopNavigationBarProps {
@@ -310,6 +310,43 @@ export const TopNavigationBar: React.FC<TopNavigationBarProps> = ({
                     </span>
                   </button>
                 ))}
+                <div className="border-t border-slate-100 mt-1 pt-1">
+                  <div
+                    className="relative"
+                    onMouseEnter={() => setActiveSubMenu('bank_slip')}
+                    onMouseLeave={() => setActiveSubMenu(null)}
+                  >
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setActiveSubMenu(activeSubMenu === 'bank_slip' ? null : 'bank_slip')
+                      }
+                      className="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center justify-between text-slate-700 hover:text-blue-600"
+                    >
+                      <span className="font-bold text-[#2c5f57]">4. Bank Slip / Receipt</span>
+                      <ChevronRight className="w-3 h-3" />
+                    </button>
+                    {activeSubMenu === 'bank_slip' && (
+                      <div className="absolute left-full top-0 ml-1 w-52 bg-white rounded-lg shadow-xl border border-slate-200 py-1 z-50">
+                        {BANK_SLIP_MENU_ITEMS.map((item) => (
+                          <button
+                            key={item.title}
+                            type="button"
+                            onClick={() => {
+                              if (!item.route) return;
+                              setActiveMenu(null);
+                              setActiveSubMenu(null);
+                              navigate(item.route);
+                            }}
+                            className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700 hover:text-blue-600"
+                          >
+                            {item.title}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
           </div>

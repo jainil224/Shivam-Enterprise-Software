@@ -22,6 +22,21 @@ import {
   BankVoucherPayload,
   BankVoucherType,
   PaymentMode,
+  BankInstrument,
+  BankInstrumentPayload,
+  BankReceiptBook,
+  BankReceiptBookPayload,
+  BankReceiptCalculationType,
+  BankReceiptDrCr,
+  ChequeReceiptPayload,
+  OutstandingBillsResponse,
+  ReceiptAdjustmentAccount,
+  ReceiptAdjustmentPreview,
+  ReceiptAllocationPayload,
+  ReceiptAllocationValidation,
+  ReceiptNeighbours,
+  ReceiptNextNumber,
+  ReceiptPartyLookup,
   AreaRecord,
   BrokerRecord,
   ItemGroupRecord,
@@ -1796,4 +1811,150 @@ export const exportAccountLedgerXlsx = async (
     blob: response.data as Blob,
     filename: readDownloadName(response.headers['content-disposition'], 'account-ledger.xlsx'),
   };
+};
+
+// =============================================================
+// Phase 18: Bank Receipt Entry (Cheque Receipt)
+// =============================================================
+
+export const getBankReceiptBooks = async (): Promise<BankReceiptBook[]> => {
+  const response = await apiClient.get<ApiResponse<BankReceiptBook[]>>('/bank-receipt-books');
+  return response.data.data;
+};
+
+export const getBankReceiptBook = async (id: string): Promise<BankReceiptBook> => {
+  const response = await apiClient.get<ApiResponse<BankReceiptBook>>(`/bank-receipt-books/${id}`);
+  return response.data.data;
+};
+
+export const createBankReceiptBook = async (
+  payload: BankReceiptBookPayload
+): Promise<BankReceiptBook> => {
+  const response = await apiClient.post<ApiResponse<BankReceiptBook>>(
+    '/bank-receipt-books',
+    payload
+  );
+  return response.data.data;
+};
+
+export const updateBankReceiptBook = async (
+  id: string,
+  payload: BankReceiptBookPayload
+): Promise<BankReceiptBook> => {
+  const response = await apiClient.put<ApiResponse<BankReceiptBook>>(
+    `/bank-receipt-books/${id}`,
+    payload
+  );
+  return response.data.data;
+};
+
+export const getBankInstruments = async (params?: {
+  search?: string;
+  includeInactive?: boolean;
+}): Promise<BankInstrument[]> => {
+  const response = await apiClient.get<ApiResponse<BankInstrument[]>>('/bank-instruments', {
+    params,
+  });
+  return response.data.data;
+};
+
+export const createBankInstrument = async (
+  payload: BankInstrumentPayload
+): Promise<BankInstrument> => {
+  const response = await apiClient.post<ApiResponse<BankInstrument>>(
+    '/bank-instruments',
+    payload
+  );
+  return response.data.data;
+};
+
+export const getNextChequeReceiptNumber = async (bookId: string): Promise<ReceiptNextNumber> => {
+  const response = await apiClient.get<ApiResponse<ReceiptNextNumber>>(
+    '/bank-receipts/next-number',
+    { params: { bookId } }
+  );
+  return response.data.data;
+};
+
+export const lookupReceiptParties = async (
+  search: string,
+  limit = 40
+): Promise<ReceiptPartyLookup[]> => {
+  const response = await apiClient.get<ApiResponse<ReceiptPartyLookup[]>>(
+    '/bank-receipts/parties',
+    { params: { search, limit } }
+  );
+  return response.data.data;
+};
+
+export const lookupReceiptAdjustmentAccounts = async (
+  search: string,
+  limit = 40
+): Promise<ReceiptAdjustmentAccount[]> => {
+  const response = await apiClient.get<ApiResponse<ReceiptAdjustmentAccount[]>>(
+    '/bank-receipts/adjustment-accounts',
+    { params: { search, limit } }
+  );
+  return response.data.data;
+};
+
+export const getReceiptOutstandingBills = async (params: {
+  partyId: string;
+  search?: string;
+  excludeVoucherId?: string;
+}): Promise<OutstandingBillsResponse> => {
+  const response = await apiClient.get<ApiResponse<OutstandingBillsResponse>>(
+    '/bank-receipts/outstanding-bills',
+    { params }
+  );
+  return response.data.data;
+};
+
+export const validateReceiptAllocation = async (payload: {
+  partyId: string;
+  receiptAmount: string | number;
+  excludeVoucherId?: string;
+  allocations: ReceiptAllocationPayload[];
+}): Promise<ReceiptAllocationValidation> => {
+  const response = await apiClient.post<ApiResponse<ReceiptAllocationValidation>>(
+    '/bank-receipts/validate-allocation',
+    payload
+  );
+  return response.data.data;
+};
+
+export const previewReceiptAdjustment = async (payload: {
+  adjustmentLedgerAccountId: string;
+  adjustmentAmount: string | number;
+  drCr: BankReceiptDrCr;
+  calculationType?: BankReceiptCalculationType;
+  partyName?: string;
+}): Promise<ReceiptAdjustmentPreview> => {
+  const response = await apiClient.post<ApiResponse<ReceiptAdjustmentPreview>>(
+    '/bank-receipts/adjustment-preview',
+    payload
+  );
+  return response.data.data;
+};
+
+export const createChequeReceipt = async (
+  payload: ChequeReceiptPayload
+): Promise<{ id: string }> => {
+  const response = await apiClient.post<ApiResponse<{ id: string }>>('/bank-receipts', payload);
+  return response.data.data;
+};
+
+export const updateChequeReceipt = async (
+  id: string,
+  payload: ChequeReceiptPayload
+): Promise<{ id: string }> => {
+  const response = await apiClient.put<ApiResponse<{ id: string }>>(`/bank-receipts/${id}`, payload);
+  return response.data.data;
+};
+
+export const getReceiptNeighbours = async (id: string): Promise<ReceiptNeighbours> => {
+  const response = await apiClient.get<ApiResponse<ReceiptNeighbours>>(
+    `/bank-receipts/${id}/neighbours`
+  );
+  return response.data.data;
 };

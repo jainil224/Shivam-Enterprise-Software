@@ -25,6 +25,11 @@ import { BankVoucherRegisterPage } from './pages/BankVoucherRegisterPage';
 import { BankVoucherEntryPage } from './pages/BankVoucherEntryPage';
 import { BankVoucherDetailPage } from './pages/BankVoucherDetailPage';
 import { BankVoucherPrintPage } from './pages/BankVoucherPrintPage';
+import { BankReceiptBookSelectionPage } from './pages/BankReceiptBookSelectionPage';
+import { BankReceiptBookManagePage } from './pages/BankReceiptBookManagePage';
+import { ChequeReceiptEntryPage } from './pages/ChequeReceiptEntryPage';
+import { ChequeReceiptPrintPage } from './pages/ChequeReceiptPrintPage';
+import { ChequeReceiptAdvicePage } from './pages/ChequeReceiptAdvicePage';
 import { ItemMasterPage } from './pages/ItemMasterPage';
 import { OrderEntryPage } from './pages/OrderEntryPage';
 import { OrderRegisterPage } from './pages/OrderRegisterPage';
@@ -237,6 +242,56 @@ export const App: React.FC = () => {
                 element={
                   <RequireCompanyContext>
                     <LedgerAccountsPage />
+                  </RequireCompanyContext>
+                }
+              />
+
+              {/* Bank Receipt Entry - Cheque Receipt (Phase 18) */}
+              <Route
+                path="/transactions/bank-receipts/books"
+                element={
+                  <RequireCompanyContext>
+                    <BankReceiptBookSelectionPage />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/bank-receipts/books/manage"
+                element={
+                  <RequireCompanyContext>
+                    <BankReceiptBookManagePage />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/bank-receipts/cheque-entry"
+                element={
+                  <RequireCompanyContext>
+                    <ChequeReceiptEntryPage />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/bank-receipts/cheque-entry/:id"
+                element={
+                  <RequireCompanyContext>
+                    <ChequeReceiptEntryPage />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/bank-receipts/cheque-entry/:id/print"
+                element={
+                  <RequireCompanyContext>
+                    <ChequeReceiptPrintPage />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/transactions/bank-receipts/cheque-entry/:id/advice"
+                element={
+                  <RequireCompanyContext>
+                    <ChequeReceiptAdvicePage />
                   </RequireCompanyContext>
                 }
               />

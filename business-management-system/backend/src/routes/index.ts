@@ -16,6 +16,11 @@ import debitNoteBookRoutes from './debitNoteBookRoutes.js';
 import debitNoteRoutes from './debitNoteRoutes.js';
 import reportRoutes from './reportRoutes.js';
 import bankReconciliationRoutes from './bankReconciliationRoutes.js';
+import {
+  bankInstrumentRoutes,
+  bankReceiptBookRoutes,
+  bankReceiptRoutes,
+} from './bankReceiptRoutes.js';
 
 const router = Router();
 
@@ -38,6 +43,13 @@ router.use('/gstin', gstinRoutes);
 
 // Transactions & Purchase Bills (Phase 11)
 router.use('/transactions/purchase-bills', purchaseBillRoutes);
+
+// Bank Receipt Entry / Cheque Receipt (Phase 18)
+// Mounted before Phase 12 so the multi-row handlers win; they call next()
+// when the payload has no `lines` array and Phase 12 answers instead.
+router.use('/bank-receipts', bankReceiptRoutes);
+router.use('/bank-receipt-books', bankReceiptBookRoutes);
+router.use('/bank-instruments', bankInstrumentRoutes);
 
 // Accounting Foundation & Bank Vouchers (Phase 12)
 router.use('/ledger-accounts', ledgerAccountRoutes);

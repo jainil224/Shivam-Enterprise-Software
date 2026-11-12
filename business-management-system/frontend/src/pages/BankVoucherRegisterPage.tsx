@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Eye,
   Filter,
+  Layers,
   Loader2,
   Pencil,
   Plus,
@@ -41,6 +42,43 @@ const formatDate = (value: string | null | undefined): string => {
   const parsed = new Date(`${value}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+interface ReceiptPartyCell {
+  name: string;
+  code: string;
+}
+
+/**
+ * Phase 18 receipts hold one row per party, so the register must show every
+ * party on the voucher instead of only the header counterparty.
+ */
+const receiptParties = (row: BankVoucher): ReceiptPartyCell[] => {
+  const seen = new Map<string, ReceiptPartyCell>();
+  // Register (list) responses carry receiptParties; detail responses carry
+  // receiptLines. Prefer the list field and fall back for older payloads.
+  for (const party of row.receiptParties ?? []) {
+    const name = party.partyName?.trim();
+    if (!name) continue;
+    const key = party.id || name;
+    if (!seen.has(key)) {
+      seen.set(key, { name, code: party.partyCode ?? '' });
+    }
+  }
+  if (seen.size === 0) {
+    for (const line of row.receiptLines ?? []) {
+      const name = line.party?.partyName?.trim();
+      if (!name) continue;
+      const key = line.party?.id ?? name;
+      if (!seen.has(key)) {
+        seen.set(key, { name, code: line.party?.partyCode ?? '' });
+      }
+    }
+  }
+  if (seen.size === 0) {
+    return [{ name: row.counterparty.accountName, code: row.counterparty.accountCode }];
+  }
+  return Array.from(seen.values());
 };
 
 const labelCls = 'block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5';
@@ -241,6 +279,17 @@ export const BankVoucherRegisterPage: React.FC<BankVoucherRegisterPageProps> = (
             <RefreshCcw className="w-3.5 h-3.5" />
             Refresh (F5)
           </button>
+          {isReceipt && (
+            <button
+              type="button"
+              onClick={() => navigate('/transactions/bank-receipts/books')}
+              disabled={isLocked}
+              className="px-2.5 py-1.5 text-[11px] font-bold rounded bg-white/10 hover:bg-white/20 border border-white/25 disabled:opacity-50 flex items-center gap-1.5"
+            >
+              <Layers className="w-3.5 h-3.5" />
+              Cheque Receipt Book
+            </button>
+          )}
           <button
             type="button"
             onClick={() => navigate(paths.create)}
@@ -467,6 +516,19 @@ export const BankVoucherRegisterPage: React.FC<BankVoucherRegisterPageProps> = (
               ) : (
                 rows.map((row) => {
                   const isCancelled = row.status === 'CANCELLED';
+                  const parties = receiptParties(row);
+                  const rowCount = row.receiptRowCount ?? row.receiptLines?.length ?? 1;
+                  const isBookReceipt = Boolean(row.receiptBook);
+                  const isMultiRow = isBookReceipt || rowCount > 1;
+                  const viewPath = isMultiRow
+                    ? `/transactions/bank-receipts/cheque-entry/${row.id}`
+                    : paths.view(row.id);
+                  const printPath = isMultiRow
+                    ? `/transactions/bank-receipts/cheque-entry/${row.id}/print`
+                    : paths.print(row.id);
+                  const editPath = isMultiRow
+                    ? `/transactions/bank-receipts/cheque-entry/${row.id}`
+                    : paths.edit(row.id);
                   return (
                     <tr
                       key={row.id}
@@ -474,15 +536,30 @@ export const BankVoucherRegisterPage: React.FC<BankVoucherRegisterPageProps> = (
                         isCancelled ? 'bg-red-50/40' : ''
                       }`}
                     >
-                      <td className="px-2 py-1.5 font-mono font-bold text-slate-800 whitespace-nowrap">
-                        {row.voucherNumber}
+                      <td className="px-2 py-1.5 whitespace-nowrap">
+                        <div className="font-mono font-bold text-slate-800">{row.voucherNumber}</div>
+                        {isBookReceipt && (
+                          <div className="text-[10px] text-slate-400">
+                            {row.receiptBook?.bookName ?? 'Receipt book'}
+                            {rowCount > 1 ? ` · ${rowCount} rows` : ''}
+                          </div>
+                        )}
                       </td>
                       <td className="px-2 py-1.5 whitespace-nowrap">{formatDate(row.voucherDate)}</td>
                       <td className="px-2 py-1.5">
-                        <div className="font-semibold text-slate-800">{row.counterparty.accountName}</div>
+                        <div
+                          className="font-semibold text-slate-800"
+                          title={parties.map((party) => party.name).join(', ')}
+                        >
+                          {parties.length === 1 ? parties[0].name : `${parties.length} parties`}
+                        </div>
                         <div className="text-[10px] text-slate-400">
-                          {row.counterparty.accountCode}
-                          {row.party ? ' · party' : ' · ledger'}
+                          {parties.length === 1
+                            ? `${parties[0].code}${row.party ? ' · party' : ' · ledger'}`
+                            : `${parties
+                                .slice(0, 2)
+                                .map((party) => party.name)
+                                .join(', ')}${parties.length > 2 ? ` +${parties.length - 2} more` : ''}`}
                         </div>
                       </td>
                       <td className="px-2 py-1.5">
@@ -518,7 +595,7 @@ export const BankVoucherRegisterPage: React.FC<BankVoucherRegisterPageProps> = (
                         <div className="flex items-center justify-center gap-1">
                           <button
                             type="button"
-                            onClick={() => navigate(paths.view(row.id))}
+                            onClick={() => navigate(viewPath)}
                             title="View"
                             className="p-1 rounded text-slate-500 hover:text-[#2c5f57] hover:bg-slate-100"
                           >
@@ -526,7 +603,7 @@ export const BankVoucherRegisterPage: React.FC<BankVoucherRegisterPageProps> = (
                           </button>
                           <button
                             type="button"
-                            onClick={() => navigate(paths.print(row.id))}
+                            onClick={() => navigate(printPath)}
                             title="Print"
                             className="p-1 rounded text-slate-500 hover:text-[#2c5f57] hover:bg-slate-100"
                           >
@@ -534,7 +611,7 @@ export const BankVoucherRegisterPage: React.FC<BankVoucherRegisterPageProps> = (
                           </button>
                           <button
                             type="button"
-                            onClick={() => navigate(paths.edit(row.id))}
+                            onClick={() => navigate(editPath)}
                             disabled={isCancelled || isLocked}
                             title={isCancelled ? 'Cancelled vouchers cannot be edited' : 'Edit'}
                             className="p-1 rounded text-slate-500 hover:text-blue-600 hover:bg-blue-50 disabled:text-slate-300 disabled:hover:bg-transparent"
