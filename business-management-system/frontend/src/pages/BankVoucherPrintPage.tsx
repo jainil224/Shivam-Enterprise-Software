@@ -6,6 +6,7 @@ import { getBankVoucherById } from '../services/api';
 import { BankVoucher, BankVoucherType, PAYMENT_MODE_LABELS } from '../types';
 import { amountInWords } from '../utils/amountInWords';
 import { bankVoucherPaths } from './BankVoucherEntryPage';
+import { WhatsAppShareButton } from '../components/WhatsAppShareModal';
 
 interface BankVoucherPrintPageProps {
   voucherType: BankVoucherType;
@@ -119,6 +120,13 @@ export const BankVoucherPrintPage: React.FC<BankVoucherPrintPageProps> = ({ vouc
             <ArrowLeft className="w-3.5 h-3.5" />
             Back
           </button>
+          <WhatsAppShareButton
+            documentType={isReceipt ? 'BANK_RECEIPT' : 'BANK_PAYMENT'}
+            documentId={voucher.id}
+            documentNumber={voucher.voucherNumber}
+            partyId={voucher.party?.id ?? null}
+            partyName={voucher.party?.partyName ?? null}
+          />
           <button
             type="button"
             onClick={() => window.print()}

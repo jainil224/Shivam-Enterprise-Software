@@ -1785,3 +1785,28 @@ model BankReceiptAdjustmentLine {
   @@index([companyId, adjustmentLedgerAccountId])
   @@map("bank_receipt_adjustment_lines")
 }
+
+// Phase 19.3 - WhatsApp document delivery audit log.
+// Deliberately scalar-only: no relation to accounting models is added, so the
+// existing financial schema stays untouched. Company / financial-year isolation
+// is enforced by the service layer through these indexed columns.
+model WhatsAppMessageLog {
+  id                String   @id @default(uuid())
+  companyId         String   @map("company_id")
+  financialYearId   String   @map("financial_year_id")
+  documentType      String   @map("document_type")
+  documentId        String   @map("document_id")
+  partyId           String?  @map("party_id")
+  recipientNumber   String   @map("recipient_number")
+  documentNumber    String   @map("document_number")
+  fileName          String   @map("file_name")
+  message           String?
+  status            String
+  errorMessage      String?  @map("error_message")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([companyId, financialYearId, createdAt])
+  @@index([companyId, documentType, documentId])
+  @@map("whatsapp_message_logs")
+}

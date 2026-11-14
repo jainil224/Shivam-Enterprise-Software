@@ -58,6 +58,7 @@ import { AccountWiseBalanceConfigPage } from './pages/AccountWiseBalanceConfigPa
 import { AccountWiseBalancePreviewPage } from './pages/AccountWiseBalancePreviewPage';
 import { AccountWiseBalancePrintPage } from './pages/AccountWiseBalancePrintPage';
 import { AccountLedgerPrintPage } from './pages/AccountLedgerPrintPage';
+import { WhatsAppIntegrationPage } from './pages/WhatsAppIntegrationPage';
 import { CompanyProvider } from './context/CompanyContext';
 import { UIModalProvider } from './context/UIModalContext';
 import { RequireCompanyContext } from './components/RequireCompanyContext';
@@ -693,8 +694,16 @@ export const App: React.FC = () => {
                   </RequireCompanyContext>
                 }
               />
-              {/* Technical System Status & Health */}
-              <Route path="/system-status" element={<WelcomePage />} />
+              {/* Phase 19.3 - Settings > Integrations > WhatsApp */}
+              <Route
+                path="/settings/integrations/whatsapp"
+                element={
+                  <RequireCompanyContext>
+                    <WhatsAppIntegrationPage />
+                  </RequireCompanyContext>
+                }
+              />
+              {/* Technical System Status & Health */}              <Route path="/system-status" element={<WelcomePage />} />
 
               {/* Catch-all redirects to Dashboard */}
               <Route path="*" element={<Navigate to="/" replace />} />

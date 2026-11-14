@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useCompany } from '../context/CompanyContext';
 import { getPurchaseBillById } from '../services/api';
+import { WhatsAppShareButton } from '../components/WhatsAppShareModal';
 
 export const PurchaseBillDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -76,6 +77,14 @@ export const PurchaseBillDetailPage: React.FC = () => {
         </div>
 
         <div className="flex items-center space-x-2">
+          <WhatsAppShareButton
+            documentType="PURCHASE_BILL"
+            documentId={bill.id}
+            documentNumber={bill.billNumber}
+            partyId={bill.partyId ?? null}
+            partyName={bill.supplierLegalName ?? null}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded font-bold text-xs flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+          />
           <button
             onClick={() => window.print()}
             className="bg-white hover:bg-slate-100 text-slate-800 px-3 py-1 rounded font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer"

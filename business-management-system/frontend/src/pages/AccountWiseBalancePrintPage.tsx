@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { WhatsAppShareButton } from '../components/WhatsAppShareModal';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -1021,15 +1022,15 @@ export const AccountWiseBalancePrintPage: React.FC = () => {
 
       <div className="flex min-h-0 flex-1">
         <aside className="awb-print-rail flex w-[58px] shrink-0 flex-col items-center gap-1.5 border-r border-[#4a4a4a] bg-[#c9c9c9] py-2">
-          <button
-            type="button"
-            disabled
-            aria-label="Wap (WhatsApp is not connected)"
-            title="WhatsApp sharing is not connected"
+          <WhatsAppShareButton
+            documentType={monthWise ? 'REPORT_ACCOUNT_MONTH_WISE_BALANCE' : 'REPORT_ACCOUNT_WISE_BALANCE'}
+            documentId="account-wise-balance"
+            documentNumber={monthWise ? 'Account Month Wise Balance' : 'Account Wise Balance'}
+            reportRequest={request ? ({ ...request } as unknown as Record<string, unknown>) : undefined}
+            label="Wap"
             className={railButton}
-          >
-            <span className="text-[11px]">Wap</span>
-          </button>
+            disabled={busy || loading || totalPages === 0}
+          />
           <button
             type="button"
             onClick={() => void downloadPdf()}

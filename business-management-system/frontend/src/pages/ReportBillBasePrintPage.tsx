@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { WhatsAppShareButton } from '../components/WhatsAppShareModal';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -595,6 +596,13 @@ export const ReportBillBasePrintPage: React.FC = () => {
           {sheets.length} sheet{sheets.length === 1 ? '' : 's'}
         </span>
         <div className="ml-auto flex flex-wrap items-center gap-1">
+          <WhatsAppShareButton
+            documentType="REPORT_BILL_BASE"
+            documentId="bill-base-report"
+            documentNumber={response.meta.reportName}
+            reportRequest={request ? ({ ...request } as unknown as Record<string, unknown>) : undefined}
+            className="h-6 px-2 rounded bg-[#128c7e] hover:bg-[#0f7a6d] text-white font-bold flex items-center gap-1 cursor-pointer disabled:opacity-60"
+          />
           <button
             type="button"
             onClick={() => window.print()}

@@ -40,3 +40,11 @@ backups/*.sql
 backups/*.tar
 backups/*.gz
 
+# WhatsApp Web Local Sessions & Caches
+.whatsapp-sessions/
+.whatsapp-sessions*/
+.wwebjs_cache/
+.wwebjs_auth/
+.wa-*
+
+

@@ -16,6 +16,7 @@ import {
   BarChart3,
   Factory,
   Wrench,
+  MessageCircle,
 } from 'lucide-react';
 import { useCompany } from '../context/CompanyContext';
 import { useModulePreferences } from '../hooks/useModulePreferences';
@@ -516,7 +517,25 @@ export const TopNavigationBar: React.FC<TopNavigationBarProps> = ({
                     <div className="text-[10px] text-slate-400">PostgreSQL latency & server runtime</div>
                   </div>
                 </button>
+                <div className="px-3 py-1.5 mt-0.5 font-bold uppercase tracking-wider text-[10px] text-slate-400 border-b border-slate-100">
+                  Integrations
+                </div>
                 <button
+                  onClick={() => {
+                    setActiveMenu(null);
+                    navigate('/settings/integrations/whatsapp');
+                  }}
+                  className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center space-x-2 text-slate-700 hover:text-blue-600"
+                >
+                  <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                  <div>
+                    <div className="font-semibold">WhatsApp</div>
+                    <div className="text-[10px] text-slate-400">Connect your number & send PDFs</div>
+                  </div>
+                </button>
+                <div className="px-3 py-1.5 mt-0.5 font-bold uppercase tracking-wider text-[10px] text-slate-400 border-b border-slate-100">
+                  System Settings
+                </div>                <button
                   onClick={() => {
                     setActiveMenu(null);
                     onOpenComingSoon('Production Book Prefix Config', 'Phase 5', 'Define custom numbering formats and invoice prefixes.');

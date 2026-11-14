@@ -1,0 +1,30 @@
+diff --git a/node_modules/whatsapp-web.js/src/Client.js b/node_modules/whatsapp-web.js/src/Client.js
+index 62de539..3a8f1c7 100644
+--- a/node_modules/whatsapp-web.js/src/Client.js
++++ b/node_modules/whatsapp-web.js/src/Client.js
+@@ -123,6 +123,7 @@ class Client extends EventEmitter {
+                 .waitForFunction('window.Debug?.VERSION != undefined', {
+                     timeout: authTimeout,
+                     signal: abort.signal,
++                    polling: 200,
+                 })
+                 .catch((err) => {
+                     if (abort.signal.aborted) throw err;
+@@ -153,7 +153,7 @@ class Client extends EventEmitter {
+                         state,
+                     };
+                 },
+-                { timeout: authTimeout },
++                { timeout: authTimeout, polling: 200 },
+             );
+             const needAuthentication = await needAuthHandle.jsonValue();
+ 
+@@ -326,7 +326,7 @@ class Client extends EventEmitter {
+                         await this.pupPage
+                             .waitForFunction(
+                                 'typeof window.WWebJS !== "undefined"',
+-                                { timeout: 30000 },
++                                { timeout: 30000, polling: 200 },
+                             )
+                             .catch(() => {
+                                 throw 'ready timeout';

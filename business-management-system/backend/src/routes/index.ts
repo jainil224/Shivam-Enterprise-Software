@@ -16,6 +16,7 @@ import debitNoteBookRoutes from './debitNoteBookRoutes.js';
 import debitNoteRoutes from './debitNoteRoutes.js';
 import reportRoutes from './reportRoutes.js';
 import bankReconciliationRoutes from './bankReconciliationRoutes.js';
+import whatsappRoutes from './whatsappRoutes.js';
 import {
   bankInstrumentRoutes,
   bankReceiptBookRoutes,
@@ -72,5 +73,8 @@ router.use('/reports', reportRoutes);
 
 // Bank Reconciliation (Phase 16)
 router.use('/reports/bank-reconciliation', bankReconciliationRoutes);
+
+// WhatsApp QR Integration (Phase 19.3)
+router.use('/integrations/whatsapp', whatsappRoutes);
 
 export default router;

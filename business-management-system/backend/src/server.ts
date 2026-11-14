@@ -3,6 +3,7 @@ import cors from 'cors';
 import { config } from './config/env.js';
 import apiRoutes from './routes/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { whatsappSessionService } from './services/whatsapp/whatsappSessionService.js';
 
 const app = express();
 
@@ -53,6 +54,18 @@ app.use(errorHandler);
 const server = app.listen(config.port, '127.0.0.1', () => {
   console.log(`[BMS Backend] Server successfully running at http://localhost:${config.port}`);
   console.log(`[BMS Backend] Environment: ${config.nodeEnv}`);
+  // Phase 19.3: re-attach persisted WhatsApp sessions. A session WhatsApp no
+  // longer accepts surfaces as AUTH_FAILURE and the UI offers a fresh QR code.
+  void whatsappSessionService
+    .restoreSessions()
+    .then((restored) => {
+      if (restored.length > 0) {
+        console.log(`[BMS Backend] Restored ${restored.length} WhatsApp session(s).`);
+      }
+    })
+    .catch((error: unknown) => {
+      console.warn('[BMS Backend] WhatsApp session restore skipped:', error instanceof Error ? error.message : error);
+    });
 });
 
 // Fail with a readable message instead of an unhandled 'error' event when the
@@ -80,13 +93,36 @@ server.on('error', (error: NodeJS.ErrnoException) => {
   process.exit(1);
 });
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM signal received: closing HTTP server');
-  server.close(() => {
-    console.log('HTTP server closed');
-    process.exit(0);
+// Graceful shutdown. WhatsApp browsers are destroyed so no orphan Chrome
+// process survives the backend, but credentials stay on disk for restore.
+const shutdown = (signal: string): void => {
+  console.log(`${signal} signal received: closing HTTP server`);
+  void whatsappSessionService.shutdownAll().finally(() => {
+    server.close(() => {
+      console.log('HTTP server closed');
+      process.exit(0);
+    });
   });
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
+// Guard against non-fatal browser automation errors (e.g. WhatsApp Web frame detach during navigation).
+// Transient navigation races in headless Chrome must never crash the main ERP backend.
+process.on('unhandledRejection', (reason: unknown) => {
+  const message = reason instanceof Error ? reason.message : String(reason);
+  if (
+    message.includes('detached Frame') ||
+    message.includes('Execution context was destroyed') ||
+    message.includes('Target closed') ||
+    message.includes('Session closed') ||
+    message.includes('Protocol error')
+  ) {
+    console.warn('[BMS Backend] Handled non-fatal WhatsApp/Puppeteer navigation race:', message);
+    return;
+  }
+  console.error('[BMS Backend] Unhandled Rejection:', reason);
 });
 
 export default app;

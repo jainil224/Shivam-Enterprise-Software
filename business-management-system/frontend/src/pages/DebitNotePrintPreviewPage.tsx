@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useCompany } from '../context/CompanyContext';
 import { getDebitNoteById, getDebitNotePrintRange, DebitNote } from '../services/api';
 import { amountInWords } from '../utils/amountInWords';
+import { WhatsAppShareButton } from '../components/WhatsAppShareModal';
 import { Printer, ArrowLeft, Loader2, Sliders, Download } from 'lucide-react';
 
 
@@ -524,6 +525,14 @@ export const DebitNotePrintPreviewPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          <WhatsAppShareButton
+            documentType="DEBIT_NOTE"
+            documentId={note.id}
+            documentNumber={note.noteNumber}
+            partyId={note.partyId ?? note.party?.id ?? null}
+            partyName={note.party?.partyName ?? null}
+            className="bg-[#1f4842] hover:bg-[#163530] text-emerald-200 px-3 py-1 rounded font-bold flex items-center gap-1.5 disabled:opacity-50"
+          />
           <button
             onClick={() => setShowOptionsModal(true)}
             className="bg-[#1f4842] hover:bg-[#163530] text-emerald-200 px-3 py-1 rounded font-bold cursor-pointer flex items-center gap-1.5"

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { WhatsAppShareButton } from '../components/WhatsAppShareModal';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -267,6 +268,18 @@ export const BankReconciliationPrintPage: React.FC = () => {
             {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
             PDF
           </button>
+          <WhatsAppShareButton
+            documentType="REPORT_BANK_RECONCILIATION"
+            documentId={bankLedgerId ?? 'adhoc'}
+            documentNumber={data?.bank.accountName ?? 'Bank Reconciliation'}
+            reportRequest={{
+              bankLedgerAccountId: bankLedgerId,
+              fromDate,
+              toDate,
+              orientation: 'portrait',
+            }}
+            className="flex items-center gap-1.5 rounded-lg border border-white/30 px-2.5 py-1 text-[11px] font-semibold hover:bg-white/10 disabled:opacity-60"
+          />
           <button
             type="button"
             onClick={() => window.print()}

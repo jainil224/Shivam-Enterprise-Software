@@ -1,0 +1,210 @@
+{
+  "report": [
+    {
+      "section": "desktop",
+      "key": "settings heading visible",
+      "value": true
+    },
+    {
+      "section": "desktop",
+      "key": "badge Disconnected",
+      "value": true
+    },
+    {
+      "section": "desktop",
+      "key": "unofficial warning",
+      "value": true
+    },
+    {
+      "section": "desktop",
+      "key": "connect button",
+      "value": true
+    },
+    {
+      "section": "desktop",
+      "key": "history section",
+      "value": true
+    },
+    {
+      "section": "desktop",
+      "key": "QR image count while disconnected",
+      "value": 0
+    },
+    {
+      "section": "desktop",
+      "key": "settings overflow",
+      "value": "{\"scrollWidth\":1440,\"clientWidth\":1440,\"bodyScrollWidth\":1440}"
+    },
+    {
+      "section": "desktop",
+      "key": "WhatsApp toolbar button visible",
+      "value": true
+    },
+    {
+      "section": "desktop",
+      "key": "share modal visible",
+      "value": true
+    },
+    {
+      "section": "desktop",
+      "key": "modal party",
+      "value": true
+    },
+    {
+      "section": "desktop",
+      "key": "modal document type",
+      "value": true
+    },
+    {
+      "section": "desktop",
+      "key": "modal document number",
+      "value": true
+    },
+    {
+      "section": "desktop",
+      "key": "modal pdf filename",
+      "value": true
+    },
+    {
+      "section": "desktop",
+      "key": "not connected banner",
+      "value": true
+    },
+    {
+      "section": "desktop",
+      "key": "SEND PDF disabled while disconnected",
+      "value": true
+    },
+    {
+      "section": "desktop",
+      "key": "mobile prefill value",
+      "value": "(empty)"
+    },
+    {
+      "section": "desktop",
+      "key": "message prefilled",
+      "value": true
+    },
+    {
+      "section": "desktop",
+      "key": "modal box",
+      "value": "{\"x\":464,\"y\":195.625,\"width\":512,\"height\":508.75}"
+    },
+    {
+      "section": "desktop",
+      "key": "console errors",
+      "value": "none"
+    },
+    {
+      "section": "desktop",
+      "key": "failed requests",
+      "value": "none"
+    },
+    {
+      "section": "mobile",
+      "key": "settings heading visible",
+      "value": true
+    },
+    {
+      "section": "mobile",
+      "key": "badge Disconnected",
+      "value": true
+    },
+    {
+      "section": "mobile",
+      "key": "unofficial warning",
+      "value": true
+    },
+    {
+      "section": "mobile",
+      "key": "connect button",
+      "value": true
+    },
+    {
+      "section": "mobile",
+      "key": "history section",
+      "value": true
+    },
+    {
+      "section": "mobile",
+      "key": "QR image count while disconnected",
+      "value": 0
+    },
+    {
+      "section": "mobile",
+      "key": "settings overflow",
+      "value": "{\"scrollWidth\":390,\"clientWidth\":390,\"bodyScrollWidth\":390}"
+    },
+    {
+      "section": "mobile",
+      "key": "WhatsApp toolbar button visible",
+      "value": true
+    },
+    {
+      "section": "mobile",
+      "key": "share modal visible",
+      "value": true
+    },
+    {
+      "section": "mobile",
+      "key": "modal party",
+      "value": true
+    },
+    {
+      "section": "mobile",
+      "key": "modal document type",
+      "value": true
+    },
+    {
+      "section": "mobile",
+      "key": "modal document number",
+      "value": true
+    },
+    {
+      "section": "mobile",
+      "key": "modal pdf filename",
+      "value": true
+    },
+    {
+      "section": "mobile",
+      "key": "not connected banner",
+      "value": true
+    },
+    {
+      "section": "mobile",
+      "key": "SEND PDF disabled while disconnected",
+      "value": true
+    },
+    {
+      "section": "mobile",
+      "key": "mobile prefill value",
+      "value": "(empty)"
+    },
+    {
+      "section": "mobile",
+      "key": "message prefilled",
+      "value": true
+    },
+    {
+      "section": "mobile",
+      "key": "modal box",
+      "value": "{\"x\":12,\"y\":167.625,\"width\":366,\"height\":508.75}"
+    },
+    {
+      "section": "mobile",
+      "key": "modal scrolls internally",
+      "value": false
+    },
+    {
+      "section": "mobile",
+      "key": "console errors",
+      "value": "none"
+    },
+    {
+      "section": "mobile",
+      "key": "failed requests",
+      "value": "none"
+    }
+  ],
+  "problems": []
+}

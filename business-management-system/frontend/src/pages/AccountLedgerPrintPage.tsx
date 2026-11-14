@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { WhatsAppShareButton } from '../components/WhatsAppShareModal';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -467,6 +468,13 @@ export const AccountLedgerPrintPage: React.FC = () => {
             )}
             Save as PDF
           </button>
+          <WhatsAppShareButton
+            documentType="REPORT_ACCOUNT_LEDGER"
+            documentId={request?.ledgerAccountId ?? 'adhoc'}
+            documentNumber="Account Ledger"
+            reportRequest={request ? ({ ...request } as unknown as Record<string, unknown>) : undefined}
+            className="flex h-6 items-center gap-1 rounded border border-emerald-300/60 px-1.5 text-[10px] font-bold text-emerald-100 hover:bg-[#356e65] disabled:opacity-40"
+          />
           <button
             type="button"
             onClick={() => window.print()}

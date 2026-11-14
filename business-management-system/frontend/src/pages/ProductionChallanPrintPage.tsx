@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useCompany } from '../context/CompanyContext';
 import { getProductionReceiveById } from '../services/api';
+import { WhatsAppShareButton } from '../components/WhatsAppShareModal';
 
 const fmt3 = (v: any) => (v !== undefined && v !== null ? Number(v).toFixed(3) : '—');
 const fmtDate = (d: string | Date) => {
@@ -203,6 +204,14 @@ export const ProductionChallanPrintPage: React.FC = () => {
               </button>
             </div>
 
+            <WhatsAppShareButton
+              documentType="PRODUCTION_CHALLAN"
+              documentId={String(challan.id ?? '')}
+              documentNumber={String(challan.challanNumber ?? '')}
+              partyId={challan.partyId ?? challan.party?.id ?? null}
+              partyName={challan.party?.partyName ?? null}
+              className="px-3 py-1.5 bg-[#128c7e] hover:bg-[#0f7a6d] text-white font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            />
             {/* Print Button */}
             <button
               onClick={handlePrint}
