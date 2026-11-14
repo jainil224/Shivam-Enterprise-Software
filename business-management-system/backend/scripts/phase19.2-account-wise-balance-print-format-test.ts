@@ -389,9 +389,18 @@ async function main() {
       true
     );
     assert(
+      nameOp !== undefined && near(nameOp.x, left + layout.companyNameXPt, 0.6),
+      'the company name block starts at the computed centre offset'
+    );
+    assert(
       nameOp !== undefined &&
-        near(nameOp.x, left + (layout.companyNameWidthPt - nameWidth) / 2, 0.6),
-      'the company name is centred in the page'
+        near(nameOp.x + nameWidth / 2, left + layout.contentWidthPt / 2, 0.6),
+      'the company name is centred on the page'
+    );
+    assert(
+      layout.companyNameXPt + layout.companyNameBlockWidthPt + 12 <=
+        layout.contentWidthPt - 3 - fontTextWidth(FY_NAME, typography.financialYearPt, 'helvetica', true) + 0.01,
+      'the centred name never runs under the financial year'
     );
     assert(
       financialYearOp !== undefined &&
@@ -877,8 +886,20 @@ async function main() {
       'the month band labels are unchanged'
     );
     assert(
-      monthResult.print.pages.every((page) => page.columnWidthsPt.length === 9),
-      'every month band keeps its nine columns'
+      monthResult.print.pages.every(
+        (page) => page.columnWidthsPt.length === 2 + page.months.length * 2 + 1
+      ),
+      'every month band keeps the account, opening, month pairs and closing columns'
+    );
+    assert(
+      monthResult.print.pages.every((page) =>
+        near(
+          page.columnWidthsPt.reduce((sum, value) => sum + value, 0),
+          monthResult.print.layout.contentWidthPt,
+          0.01
+        )
+      ),
+      'the month band columns still fill the landscape content width'
     );
     const monthPdf = await accountWiseBalanceService.exportMonthWisePdf(
       ctx.companyId,

@@ -411,3 +411,250 @@ and financial years return `404` before any query runs.
 - No journal, voucher, ledger, party or financial-year write was added. The
   Phase 2 suite asserts that journal lines, vouchers, ledgers and parties are
   byte-identical before and after every report run and export.
+---
+
+# Phase 19.2 - Traditional Print Format (Account Wise Balance)
+
+Status: **implemented and verified.** Only the print-preview window and the
+printed document changed. The configuration screen, the result grid, every
+balance calculation, the account classification, the monthly calculation, the
+database schema and the Account + Month Wise report behaviour are untouched.
+
+## 22. Root cause of the format mismatch
+
+1. **The print window was the dashboard, not a document.** Phase 19.1 opened the
+   print route with the same chrome and card styling as the result screen: a
+   coloured header strip, rounded cards, a flex "table" and a vertically
+   centred page. There was no grey canvas, no white A4 sheet and no compact
+   toolbar, so the window never looked like the traditional Chandni print.
+2. **The PDF could not right-align anything.** `pdfWriter.ts` only knew Courier,
+   whose fixed 0.6 em advance makes text width independent of the glyphs. A
+   right-aligned amount in a proportional face is impossible with that metric,
+   so the document could not use a sans-serif face.
+3. **Preview and PDF had no shared geometry.** Page margins, band heights,
+   column widths, font sizes and pagination were derived twice - once in the
+   React sheet and once in the PDF renderer - so the two outputs could never be
+   guaranteed to match.
+
+Phase 19.2 fixes all three: one shared print document, real Helvetica metrics,
+and one geometry object that both renderers read.
+
+## 23. Files created and modified
+
+### Created
+
+- `backend/scripts/phase19.2-account-wise-balance-print-format-test.ts` - the
+  focused 105-assertion suite for this phase.
+- `documentation/screenshots/phase19/p19p2-*.png`, `p192-*.png`,
+  `p19p2-account.pdf`, `p19p2-month.pdf`, `p19p2-verify.json` - browser and PDF
+  evidence.
+
+### Modified
+
+- `backend/src/utils/accountWiseBalancePrint.ts` - rebuilt geometry, typography,
+  baseline helpers, pagination and both print documents (account-wise portrait
+  and month-wise landscape).
+- `backend/src/utils/accountWiseBalancePrintPdf.ts` - rebuilt Helvetica renderer
+  for both documents.
+- `backend/src/utils/pdfWriter.ts` - Helvetica / Helvetica-Bold AFM width
+  tables, `helveticaGlyphWidth`, `fontTextWidth`, `wrapTextToWidth`,
+  `fitFontSize`, per-run font selection, F5/F6 resources.
+- `backend/src/types/accountWiseBalanceTypes.ts` and
+  `frontend/src/types/accountWiseBalance.ts` - the shared print types (identical
+  on both sides), including `typography`, `companyNameWidthPt`,
+  `companyNameBlockWidthPt`, `companyNameXPt` and the five header band heights.
+- `frontend/src/pages/AccountWiseBalancePrintPage.tsx` - the whole print window
+  and both A4 sheets.
+- `frontend/src/styles/index.css` - `.awb-print-canvas` plus the `@media print`
+  rules that hide the toolbar and the rail and flatten the canvas.
+- `backend/package.json` - `test:phase19.2`.
+
+No schema change, no migration, no new table, no second PDF generator and no
+change to any calculation module.
+
+## 24. Design changes
+
+- Canvas `#8e8e8e` (neutral grey), the sheet pure white, the toolbar and the
+  left rail a light grey with 1 px dark outlines and square corners.
+- Toolbar: `Print | Save | First | Previous | [n] OF [m] | Next | Last | Close`
+  plus an `A4 Portrait` / `A4 Landscape` badge.
+- Left rail: `Wap` (disabled - no WhatsApp integration exists), `PDF`, `Save`.
+- Every action is real: Print calls `window.print()`, both Save and PDF download
+  the genuine backend PDF, First/Previous/Next/Last move between the real print
+  pages, Close returns to the result screen, Esc/arrow keys/Home/End/Ctrl+S are
+  bound. Nothing is decorative.
+- The page count always comes from `print.pages.length`; the frontend never
+  numbers pages itself.
+- The sheet keeps its true A4 size on a 390 px viewport, so the stage scrolls
+  horizontally inside itself and the application never overflows.
+
+## 25. Header layout (both preview and PDF)
+
+| Band | Height (pt) | Content |
+|---|---|---|
+| Company name | 30 (grows with wrapped lines) | bold, page-centred, 14 pt (auto-shrinks to 9 pt) |
+| Financial year | same baseline as the name | bold 10 pt, right-aligned at the content edge |
+| Address | `lines * 10 + 10` | centred 8 pt, Company Master values only |
+| PAN / TAN | 20 | `PAN NO:` left, `TAN NO:` right **only when stored** |
+| Report title | 24 | `ACCOUNT BALANCE REPORT`, bold 11 pt, centred |
+| Meta | 22 | `GSTIN:` left, `PERIOD: DD-MM-YYYY TO DD-MM-YYYY`, `PAGE X OF Y` right |
+
+The name is centred on the page centre (297.64 pt) and slides left by the
+minimum amount only when it would collide with the financial year, so a long
+company name can never overprint the year. The live company's name centre is
+297.64 pt in the PDF and 397.84 px against a sheet centre of 396.85 px in the
+preview.
+
+No value is hardcoded: the name, address, PAN, GSTIN and period come from the
+Company Master and the financial year record. The Company model stores no TAN,
+so `tanNumber` is `null` and the label is omitted entirely rather than printed
+blank or invented.
+
+## 26. Typography
+
+| Element | Size | Weight |
+|---|---|---|
+| Company name | 14 pt (min 9) | bold |
+| Financial year | 10 pt | bold |
+| Address | 8 pt | regular |
+| Report title | 11 pt | bold |
+| GSTIN / PAN / period / page | 8 pt | regular |
+| Column headings | 8.5 pt | bold |
+| Account names | 9.5 pt | bold |
+| Account details | 7.5 pt | regular |
+| Amounts | 9 pt | regular |
+| TOTAL row | 9.5 pt | bold |
+| Month band: name / detail / amount | 9 / 7.5 / 7.5 pt | bold / regular / regular |
+
+Face: Helvetica in the PDF (base-14, no embedding, no font download), Arial /
+Helvetica in the preview. Amounts use Indian digit grouping (`5,71,500.00`).
+
+## 27. Table and borders
+
+- Exactly three columns, `ACCOUNT NAME` 55 %, `DEBIT` 22.5 %, `CREDIT` 22.5 % of
+  the 539.28 pt content width - 296.60 / 121.34 / 121.34 pt on the live company.
+- 0.6 pt black rules on every cell boundary; adjacent rows share one rule so no
+  border is doubled; the table head ends with its own bottom rule.
+- Account names and headings start at the left edge plus 3 pt; every amount ends
+  exactly 3 pt inside its column's right edge.
+- One account block = the name lines plus the optional detail lines. The amount
+  sits on the **last printed line** of the block: beside the name when the block
+  has no details, beside the last detail line when it has some. This keeps tall
+  blocks visually balanced and matches the traditional sheet.
+- Only the side that carries the balance prints; the two totals are independent
+  and are never forced to agree.
+
+## 28. Pagination
+
+- Blocks are atomic: an account and its detail lines are never split across
+  pages.
+- Every page repeats the full header, the title and the `ACCOUNT NAME / DEBIT /
+  CREDIT` band, and carries its own `PAGE X OF Y`.
+- The TOTAL row prints once, on the final page, and is included in the space
+  budget so the last page can never run into the bottom margin.
+- Page Break on Every Party prints one account per page with no blank page; a
+  page is only created when it receives content.
+- Skip 0 removes zero-balance accounts before pagination.
+
+## 29. PDF changes
+
+- `pdfWriter.ts` now exposes Helvetica and Helvetica-Bold (F5/F6) with real AFM
+  advance widths, `fontTextWidth`, `wrapTextToWidth` and `fitFontSize`; every
+  text run carries its own font, so one page can mix regular and bold.
+- `accountWiseBalancePrintPdf.ts` renders the shared document: centred name with
+  the right-aligned year, centred address block, PAN left / TAN right, centred
+  title, GSTIN / period / page line, the 55/22.5/22.5 table, last-line amount
+  alignment, the centred TOTAL row and the month bands.
+- The output is a genuine, searchable A4 text PDF: `%PDF-1.4`, uncompressed
+  content streams, `/MediaBox [0 0 595.28 841.89]` for portrait and
+  `[0 0 841.89 595.28]` for landscape.
+- Filename stays dynamic: `Account_Wise_Balance_<FY>.pdf` and
+  `Account_Month_Wise_Balance_<FY>.pdf`.
+- The PDF is generated from the same print document the preview renders; there
+  is no second calculation, no second layout and no frontend page numbering.
+
+## 30. Browser verification
+
+Playwright harness `verify-p19p2.mjs` (desktop 1440x900 and mobile 390x844):
+
+- **48 / 48 checks passed**, 0 console errors, 0 page errors, 0 bad API calls.
+- Desktop sheet 793.70 x 1122.52 px, ratio 0.7071, no document overflow.
+- Mobile sheet keeps ratio 0.7071 with `scrollWidth = clientWidth = 390`.
+- Month-wise preview ratio 1.4143 (landscape) and 6 band pages for 12 months.
+- Result grid still shows the 16 backend rows and the closing totals
+  `5,71,500.00 / 78,000.00`; both PDF downloads complete through the UI.
+
+## 31. Actual PDF verification
+
+The PDFs downloaded through the UI (not synthesised in a test) were parsed:
+
+`p19p2-account.pdf` (7,723 bytes)
+
+- `%PDF-1.4`, terminated with `%%EOF`, one page, `/MediaBox [0 0 595.28 841.89]`.
+- Fonts `Helvetica` + `Helvetica-Bold`; `/F5 7 0 R` and `/F6 8 0 R` present.
+- Header text: `OTHER TEXTILES LTD` centred at 297.64 pt (exact page centre),
+  `2026 - 2027` right edge 564.28 pt, `Mumbai, Maharashtra` centred,
+  `PAN NO:` left at 31.00 pt, `ACCOUNT BALANCE REPORT` bold 11 pt centred at
+  297.64 pt, `GSTIN: 27AABCS9999F1Z1`, `PERIOD: 01-04-2026 TO 31-03-2027`,
+  `PAGE 1 OF 1`.
+- No `TAN NO:` text run anywhere in the file.
+- `DEBIT` right edge 442.94 pt and `CREDIT` right edge 564.28 pt; every amount
+  ends at exactly one of those two edges (5 amounts, 2 distinct right edges).
+- Totals `5,71,500.00` and `78,000.00` on the TOTAL row.
+
+`p19p2-month.pdf` (56,061 bytes)
+
+- 6 pages, every page `/MediaBox [0 0 841.89 595.28]` (landscape).
+- `PAGE 1 OF 6` ... `PAGE 6 OF 6`, `ACCOUNT + MONTH WISE BALANCE`, `OPENING`,
+  `CLOSING`, the month labels and the TOTAL row all present.
+
+Preview/PDF parity was measured in the DOM against the same document: the title
+centre matches the sheet centre exactly (396.84 vs 396.85 px), the company name
+centre is within 1 px (397.84 vs 396.85 px) and the financial year right edge is
+within 1 px (751.36 vs 752.37 px) - the residual is browser glyph rounding, not a
+layout difference.
+
+## 32. Focused test results
+
+`npm run test:phase19.2` - **105 / 105 assertions passed**, covering the 26
+required items in sections A-H: A4 geometry, header bands, real Company Master
+values, PAN/TAN/GSTIN, title, financial year, period, `PAGE X OF Y`, the
+55/22.5/22.5 table, left names and right amounts, amount baselines, the six
+print options, Skip 0, Page Break on Every Party, multi-page output, the TOTAL
+row, the genuine PDF signature and fonts, preview/PDF parity, and the untouched
+month-wise landscape regression.
+
+## 33. Regression results
+
+| Suite | Result |
+|---|---|
+| `test:phase19` | 111 / 111 |
+| `test:phase19:phase2` | 156 / 156 |
+| `test:phase17` | 70 / 70 |
+| `test:phase17.1` | 33 / 33 |
+| `test:phase18` | 125 / 125 |
+| `test:phase18.1` | 56 / 56 |
+| `test:phase18.2` | 45 / 45 |
+| `test:phase18.3` | 30 / 30 |
+| backend `tsc --noEmit` | exit 0 |
+| frontend `tsc --noEmit` | exit 0 |
+| frontend `npm run build` | exit 0 |
+
+The result grid, the configuration screen, the balance engine, the account
+classification, the monthly calculation and the Account + Month Wise report are
+byte-for-byte unchanged in behaviour.
+
+## 34. Remaining limitations
+
+1. **TAN** - the Company Master still stores no TAN, so the label is omitted. A
+   TAN requires a schema change that this phase did not make.
+2. **WhatsApp** - there is no WhatsApp integration in the repository, so the
+   `Wap` button is rendered disabled with an explanatory tooltip instead of
+   pretending to send.
+3. **Excel export** - still not shipped; no reusable XLSX exporter exists for
+   this document.
+4. **Browser print** - the sheet prints through the same A4 geometry, but the
+   physical result still depends on the browser print dialog (margins and
+   headers/footers off). The downloaded PDF is the pixel-independent output.
+5. **Notes** - the interpretation notes remain in the print payload but are not
+   drawn on the sheet, matching the traditional format.

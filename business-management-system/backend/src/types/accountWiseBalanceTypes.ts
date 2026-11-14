@@ -264,6 +264,10 @@ export interface AccountWisePrintLayout {
   companyNameLines: string[];
   /** Width reserved for the company name, so the financial year fits beside it. */
   companyNameWidthPt: number;
+  /** Width of the longest printed name line, used to centre the block. */
+  companyNameBlockWidthPt: number;
+  /** Left offset of the name block from the content edge, in points. */
+  companyNameXPt: number;
   typography: AccountWisePrintTypography;
   nameHeightPt: number;
   addressHeightPt: number;

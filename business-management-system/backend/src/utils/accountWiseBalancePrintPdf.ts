@@ -100,12 +100,12 @@ function drawCompanyHeader(
   // 1. Company name centred, financial year right aligned on the same line.
   let y = layout.contentTopPt;
   const financialYearWidth = fontTextWidth(financialYear, t.financialYearPt, 'helvetica', true);
-  const nameWidth = layout.companyNameWidthPt;
+  const nameBlockLeft = left + Math.max(CELL_PAD, layout.companyNameXPt);
   const nameBaseline = centeredBaseline(y, layout.nameHeightPt, t.companyNamePt);
   layout.companyNameLines.forEach((line, index) => {
     const lineWidth = fontTextWidth(line, t.companyNamePt, 'helvetica', true);
     ops.texts.push({
-      x: left + Math.max(CELL_PAD, (nameWidth - lineWidth) / 2),
+      x: nameBlockLeft + (layout.companyNameBlockWidthPt - lineWidth) / 2,
       y: nameBaseline - index * (t.companyNamePt + 3),
       text: line,
       size: t.companyNamePt,

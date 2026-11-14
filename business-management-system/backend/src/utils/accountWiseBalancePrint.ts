@@ -189,6 +189,20 @@ function layoutFor(
     AWB_GEOMETRY.headerName,
     companyNameLines.length * (companyNamePt + 3) + 8
   );
+  // The name sits on the page centre, but never runs under the financial year:
+  // when the two would collide the block slides left by the minimum amount.
+  const companyNameBlockWidthPt = companyNameLines.reduce(
+    (max, line) => Math.max(max, fontTextWidth(line, companyNamePt, 'helvetica', true)),
+    0
+  );
+  const financialYearLeft = contentWidth - 3 - financialYearWidth;
+  const companyNameXPt = Math.max(
+    3,
+    Math.min(
+      (contentWidth - companyNameBlockWidthPt) / 2,
+      financialYearLeft - 12 - companyNameBlockWidthPt
+    )
+  );
   const addressHeightPt =
     company.addressLines.length > 0
       ? company.addressLines.length * AWB_GEOMETRY.headerAddressLine + AWB_GEOMETRY.headerAddressPad
@@ -234,6 +248,8 @@ function layoutFor(
     bodyBottomPt: contentBottom,
     companyNameLines,
     companyNameWidthPt: nameWidth,
+    companyNameBlockWidthPt,
+    companyNameXPt,
     typography,
     nameHeightPt,
     addressHeightPt,

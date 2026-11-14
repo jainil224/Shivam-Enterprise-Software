@@ -123,9 +123,9 @@ const CompanyHeader: React.FC<{
         <div
           style={{
             position: 'absolute',
-            left: 0,
+            left: px(layout.companyNameXPt),
             top: 0,
-            width: px(layout.companyNameWidthPt),
+            width: px(layout.companyNameBlockWidthPt),
             height: '100%',
             display: 'flex',
             flexDirection: 'column',
