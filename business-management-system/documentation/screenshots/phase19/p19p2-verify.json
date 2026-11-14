@@ -1,0 +1,314 @@
+{
+  "checks": [
+    {
+      "name": "Account Wise Balance appears under Report > Final Reports",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "selection screen renders the account-wise report",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "the month-wise report entry is listed",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "the month-wise report entry is enabled",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "Print is enabled on the selection screen",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "selecting entry 2 switches the active report",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "configuration screen opens",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "Print is enabled on the configuration screen",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "six report option checkboxes exist",
+      "ok": true,
+      "detail": "6"
+    },
+    {
+      "name": "the option checkbox 'Party Address Required' is present",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "the option checkbox 'Party Mobile No Required' is present",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "the option checkbox 'PAN No Required' is present",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "the result page opens",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "the result grid has the three required columns",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "the result grid shows every backend row",
+      "ok": true,
+      "detail": "grid=16 api=16"
+    },
+    {
+      "name": "the result grid prints the backend closing totals",
+      "ok": true,
+      "detail": "5,71,500.00 / 78,000.00"
+    },
+    {
+      "name": "the totals row names the real account count",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "the result page offers Print and Save as PDF",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "the preview draws one A4 portrait sheet",
+      "ok": true,
+      "detail": "ratio=0.7071"
+    },
+    {
+      "name": "the print document is titled ACCOUNT BALANCE REPORT",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "the print header carries PAN, GSTIN and the period",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "the print header omits TAN when the company has none",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "the print table repeats the three column headers",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "the sheet carries PAGE 1 OF n",
+      "ok": true,
+      "detail": "pages=1"
+    },
+    {
+      "name": "the toolbar shows the page counter and both paging buttons",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "Previous is disabled on the first page",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "Save as PDF downloads Account_Wise_Balance_2026-2027.pdf",
+      "ok": true,
+      "detail": "Account_Wise_Balance_2026-2027.pdf"
+    },
+    {
+      "name": "the downloaded PDF is a real PDF file",
+      "ok": true,
+      "detail": "7409 bytes"
+    },
+    {
+      "name": "the configuration screen switches to the month-wise report",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "the month-wise result grid shows one column pair per real month",
+      "ok": true,
+      "detail": "APR 2026|MAY 2026|JUN 2026|JUL 2026|AUG 2026|SEP 2026|OCT 2026|NOV 2026|DEC 2026|JAN 2027|FEB 2027|MAR 2027 vs 12"
+    },
+    {
+      "name": "the month-wise result grid shows Opening and Closing",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "the month-wise result grid shows every backend row",
+      "ok": true,
+      "detail": "grid=16 api=16"
+    },
+    {
+      "name": "the month-wise result grid carries the interpretation notes",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "the month-wise preview draws one A4 landscape sheet",
+      "ok": true,
+      "detail": "ratio=1.4143"
+    },
+    {
+      "name": "the month-wise print document is titled and landscape",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "the month-wise print table repeats OPENING, monthly DEBIT/CREDIT and CLOSING",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "the month-wise document paginates into month bands",
+      "ok": true,
+      "detail": "pages=6"
+    },
+    {
+      "name": "Next moves to the next page of the month band",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "Save as PDF downloads Account_Month_Wise_Balance_2026-2027.pdf",
+      "ok": true,
+      "detail": "Account_Month_Wise_Balance_2026-2027.pdf"
+    },
+    {
+      "name": "the month-wise PDF is a real PDF file",
+      "ok": true,
+      "detail": "57125 bytes"
+    },
+    {
+      "name": "mobile: the selection screen renders both report entries",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "mobile: the selection screen has no horizontal page overflow",
+      "ok": true,
+      "detail": "{\"scroll\":390,\"client\":390}"
+    },
+    {
+      "name": "mobile: the configuration screen opens",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "mobile: the Print action is reachable",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "mobile: the result table scrolls inside its own container",
+      "ok": true,
+      "detail": "{\"scroll\":390,\"client\":390}"
+    },
+    {
+      "name": "mobile: the result grid keeps the three columns",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "mobile: the A4 sheet keeps its exact page geometry",
+      "ok": true,
+      "detail": "0.7071"
+    },
+    {
+      "name": "mobile: the print document still renders the full header",
+      "ok": true,
+      "detail": null
+    }
+  ],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "badRequests": [],
+  "shots": [
+    "p19p2-01-selection.png",
+    "p19p2-02-config.png",
+    "p19p2-03-result.png",
+    "p19p2-04-print-account.png",
+    "p19p2-05-result-month.png",
+    "p19p2-06-print-month.png",
+    "p19p2-07-mobile-selection.png",
+    "p19p2-08-mobile-config.png",
+    "p19p2-09-mobile-result.png",
+    "p19p2-10-mobile-print.png"
+  ],
+  "api": {
+    "options": {
+      "reportTypes": [
+        {
+          "value": "ACCOUNT_WISE_BALANCE",
+          "label": "1. Account Wise Balance",
+          "enabled": true,
+          "note": null
+        },
+        {
+          "value": "ACCOUNT_MONTH_WISE_BALANCE",
+          "label": "2. Account + Month Wise Balance",
+          "enabled": true,
+          "note": "Opening balance, monthly Debit/Credit movement and closing balance per account."
+        }
+      ],
+      "fy": "2026 - 2027",
+      "from": "2026-04-01",
+      "to": "2027-03-31"
+    },
+    "accountRun": {
+      "status": 200,
+      "rows": 16,
+      "totals": {
+        "totalDebit": "71500.00",
+        "totalCredit": "71500.00",
+        "totalOpeningDebit": "518500.00",
+        "totalOpeningCredit": "25000.00",
+        "totalClosingDebit": "571500.00",
+        "totalClosingCredit": "78000.00",
+        "accountCount": 16
+      },
+      "pages": 1
+    },
+    "monthRun": {
+      "status": 200,
+      "rows": 16,
+      "months": 12,
+      "pages": 6
+    }
+  },
+  "pdf": {
+    "account": {
+      "filename": "Account_Wise_Balance_2026-2027.pdf",
+      "size": 7409,
+      "head": "%PDF-1.4"
+    },
+    "month": {
+      "filename": "Account_Month_Wise_Balance_2026-2027.pdf",
+      "size": 57125,
+      "head": "%PDF-1.4"
+    }
+  },
+  "passed": 48,
+  "total": 48
+}

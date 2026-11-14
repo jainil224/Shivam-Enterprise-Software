@@ -1,0 +1,392 @@
+{
+  "checks": [
+    {
+      "name": "Account Wise Balance appears under Report > Final Reports",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "the menu entry navigates to the report route",
+      "ok": true,
+      "detail": "http://localhost:5173/reports/final-reports/account-wise-balance"
+    },
+    {
+      "name": "selection screen renders",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "month-wise report is listed as Phase 2",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "selection explains Phase 2 print",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "Print button is disabled on selection",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "Preview button carries the Page Down hint",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "configuration fields follow the specified order",
+      "ok": true,
+      "detail": "ACCOUNT TYPE@365, PARTY@459, PARTY GROUP@472, SCHEDULE@569, BALANCE COLUMNS@640, REPORT OPTIONS@769, FROM DATE@930, TO DATE@953"
+    },
+    {
+      "name": "Account Type defaults to Creditors",
+      "ok": true,
+      "detail": "CREDITORS"
+    },
+    {
+      "name": "five account types are offered",
+      "ok": true,
+      "detail": "[\"DEBTORS\",\"CREDITORS\",\"CAPITAL\",\"DEPOSITORS\",\"ALL\"]"
+    },
+    {
+      "name": "Depositors is disabled with a documented reason",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "party defaults to 1. All",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "party group defaults to 1. All",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "Schedule defaults to All",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "Balance Columns defaults to Both",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "From date defaults to the FY start",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "To date defaults to the FY end",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "six report option checkboxes exist",
+      "ok": true,
+      "detail": "6"
+    },
+    {
+      "name": "every checkbox starts unchecked",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "checkbox labels match the specification",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "Print is disabled on the configuration screen",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "Account Type narrows the Party lookup",
+      "ok": true,
+      "detail": "creditors=3 all=5"
+    },
+    {
+      "name": "Schedule = Select opens the popup",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "popup starts at TOTAL SELECTED: 0",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "Apply is blocked while nothing is selected",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "popup lists the real creditor schedules",
+      "ok": true,
+      "detail": "rows=1"
+    },
+    {
+      "name": "ticking a schedule updates TOTAL SELECTED",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "popup closes after Apply",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "configuration shows the applied schedule",
+      "ok": true,
+      "detail": "Sundry Creditors"
+    },
+    {
+      "name": "reopening the popup restores the previous selection",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "Cancel keeps the applied selection",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "an Edit control reopens the applied schedule selection",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "Cancel does not drop the applied schedule label",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "five report options can be checked",
+      "ok": true,
+      "detail": "5"
+    },
+    {
+      "name": "Skip 0 stays unchecked for this run",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "preview shows exactly the backend rows",
+      "ok": true,
+      "detail": "ui=3 api=3"
+    },
+    {
+      "name": "preview names the company",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "preview shows the applied schedule",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "preview shows the period",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "preview renders a totals row",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "preview renders the first account name",
+      "ok": true,
+      "detail": "P16 TEMP Supplier (test data)"
+    },
+    {
+      "name": "preview renders the first closing balance",
+      "ok": true,
+      "detail": "18,500.00"
+    },
+    {
+      "name": "preview shows the Address column when requested",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "preview shows the Mobile column when requested",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "preview shows the PAN column when requested",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "preview Print stays disabled for Phase 2",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "empty result shows a real empty state",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "invalid period surfaces the backend error",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "error state offers Retry",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "the deliberate invalid request is the only rejected call",
+      "ok": true,
+      "detail": "[\"desktop: 400 /api/reports/account-wise-balance/query\"]"
+    },
+    {
+      "name": "selection screen fits a 390px viewport",
+      "ok": true,
+      "detail": "overflow=0"
+    },
+    {
+      "name": "configuration screen fits a 390px viewport",
+      "ok": true,
+      "detail": "overflow=0"
+    },
+    {
+      "name": "schedule popup fits the mobile viewport",
+      "ok": true,
+      "detail": "{\"x\":0,\"y\":0,\"width\":390,\"height\":844}"
+    },
+    {
+      "name": "preview screen fits a 390px viewport",
+      "ok": true,
+      "detail": "overflow=0"
+    },
+    {
+      "name": "mobile preview renders rows",
+      "ok": true,
+      "detail": null
+    }
+  ],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "badRequests": [],
+  "shots": [
+    "p19-01-selection-desktop.png",
+    "p19-02-config-desktop.png",
+    "p19-03-schedule-popup-empty.png",
+    "p19-04-schedule-popup-selected.png",
+    "p19-05-config-filled.png",
+    "p19-06-preview-desktop.png",
+    "p19-07-preview-empty.png",
+    "p19-08-preview-error.png",
+    "p19-09-selection-mobile.png",
+    "p19-10-config-mobile.png",
+    "p19-11-schedule-popup-mobile.png",
+    "p19-12-preview-mobile.png"
+  ],
+  "api": {
+    "options": {
+      "reportTypes": [
+        {
+          "value": "ACCOUNT_WISE_BALANCE",
+          "label": "1. Account Wise Balance",
+          "enabled": true,
+          "note": null
+        },
+        {
+          "value": "ACCOUNT_MONTH_WISE_BALANCE",
+          "label": "2. Account + Month Wise Balance",
+          "enabled": false,
+          "note": "Reserved for Phase 2. Not implemented in this build."
+        }
+      ],
+      "accountTypes": [
+        {
+          "value": "DEBTORS",
+          "supported": true
+        },
+        {
+          "value": "CREDITORS",
+          "supported": true
+        },
+        {
+          "value": "CAPITAL",
+          "supported": true
+        },
+        {
+          "value": "DEPOSITORS",
+          "supported": false
+        },
+        {
+          "value": "ALL",
+          "supported": true
+        }
+      ],
+      "parties": 5,
+      "partyGroups": 0,
+      "schedules": [
+        "ASSETS",
+        "BANK",
+        "DIRECT_EXPENSES",
+        "INDIRECT_EXPENSES",
+        "INDIRECT_INCOME",
+        "OTHERS",
+        "SUNDRY_CREDITORS",
+        "SUNDRY_DEBTORS"
+      ],
+      "defaultAccountType": "CREDITORS",
+      "from": "2026-04-01",
+      "to": "2027-03-31",
+      "fy": "2026 - 2027"
+    },
+    "defaultRun": {
+      "status": 200,
+      "rows": 3,
+      "totals": {
+        "totalDebit": "18500.00",
+        "totalCredit": "0.00",
+        "totalOpeningDebit": "0.00",
+        "totalOpeningCredit": "25000.00",
+        "totalClosingDebit": "18500.00",
+        "totalClosingCredit": "25000.00",
+        "accountCount": 3
+      }
+    },
+    "flaggedRun": {
+      "status": 200,
+      "rows": 3,
+      "schedule": "SUNDRY_CREDITORS",
+      "totals": {
+        "totalDebit": "18500.00",
+        "totalCredit": "0.00",
+        "totalOpeningDebit": "0.00",
+        "totalOpeningCredit": "25000.00",
+        "totalClosingDebit": "18500.00",
+        "totalClosingCredit": "25000.00",
+        "accountCount": 3
+      }
+    }
+  },
+  "expectedRejections": {
+    "requests": [
+      "desktop: 400 /api/reports/account-wise-balance/query"
+    ],
+    "console": [
+      "desktop: Failed to load resource: the server responded with a status of 400 (Bad Request)"
+    ]
+  },
+  "summary": {
+    "total": 55,
+    "passed": 55,
+    "failed": 0
+  }
+}

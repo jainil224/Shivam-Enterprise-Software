@@ -479,6 +479,13 @@ export const REPORT_MENU_ITEMS: MenuItem[] = [
         plannedPhase: 'Phase 9',
         implemented: false,
       },
+      {
+        title: 'Account Wise Balance',
+        description: 'Account wise opening, period Debit/Credit and closing balance from posted ledgers.',
+        plannedPhase: 'Phase 19',
+        implemented: true,
+        route: '/reports/final-reports/account-wise-balance',
+      },
     ],
   },
 ];

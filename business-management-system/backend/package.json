@@ -27,7 +27,10 @@
     "test:phase18": "tsx scripts/phase18-bank-receipts-test.ts",
     "test:phase18.1": "tsx scripts/phase18.1-bank-receipts-test.ts",
     "test:phase18.2": "tsx scripts/phase18.2-bank-receipt-description-test.ts",
-    "test:phase18.3": "tsx scripts/phase18.3-jv-balance-test.ts"
+    "test:phase18.3": "tsx scripts/phase18.3-jv-balance-test.ts",
+    "test:phase19": "tsx scripts/phase19-account-wise-balance-test.ts",
+    "test:phase19:phase2": "tsx scripts/phase19.1-account-wise-balance-phase2-test.ts",
+    "test:phase19.2": "tsx scripts/phase19.2-account-wise-balance-print-format-test.ts"
   },
   "keywords": [
     "bms",

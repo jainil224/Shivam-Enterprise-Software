@@ -53,6 +53,10 @@ import { BankBookResultsPage } from './pages/BankBookResultsPage';
 import { BankBookPrintPage } from './pages/BankBookPrintPage';
 import { AccountLedgerSelectionPage } from './pages/AccountLedgerSelectionPage';
 import { AccountLedgerPage } from './pages/AccountLedgerPage';
+import { AccountWiseBalanceSelectionPage } from './pages/AccountWiseBalanceSelectionPage';
+import { AccountWiseBalanceConfigPage } from './pages/AccountWiseBalanceConfigPage';
+import { AccountWiseBalancePreviewPage } from './pages/AccountWiseBalancePreviewPage';
+import { AccountWiseBalancePrintPage } from './pages/AccountWiseBalancePrintPage';
 import { AccountLedgerPrintPage } from './pages/AccountLedgerPrintPage';
 import { CompanyProvider } from './context/CompanyContext';
 import { UIModalProvider } from './context/UIModalContext';
@@ -654,6 +658,38 @@ export const App: React.FC = () => {
                 element={
                   <RequireCompanyContext>
                     <AccountLedgerPage />
+                  </RequireCompanyContext>
+                }
+              />              {/* Phase 19 - Account Wise Balance (Phase 1) */}
+              <Route
+                path="/reports/final-reports/account-wise-balance"
+                element={
+                  <RequireCompanyContext>
+                    <AccountWiseBalanceSelectionPage />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/reports/final-reports/account-wise-balance/config"
+                element={
+                  <RequireCompanyContext>
+                    <AccountWiseBalanceConfigPage />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/reports/final-reports/account-wise-balance/preview"
+                element={
+                  <RequireCompanyContext>
+                    <AccountWiseBalancePreviewPage />
+                  </RequireCompanyContext>
+                }
+              />
+              <Route
+                path="/reports/final-reports/account-wise-balance/print"
+                element={
+                  <RequireCompanyContext>
+                    <AccountWiseBalancePrintPage />
                   </RequireCompanyContext>
                 }
               />

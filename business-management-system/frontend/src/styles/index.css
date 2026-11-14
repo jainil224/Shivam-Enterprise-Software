@@ -190,3 +190,71 @@
     box-shadow: none !important;
   }
 }
+/* Phase 19.1 (Phase 2) - Account Wise Balance A4 document.
+   The sheet is already sized in points, so the named pages keep a zero margin
+   and every page is printed exactly once. */
+@page awb-print-portrait {
+  size: A4 portrait;
+  margin: 0;
+}
+
+@page awb-print-landscape {
+  size: A4 landscape;
+  margin: 0;
+}
+
+@media print {
+  .awb-sheet-portrait {
+    page: awb-print-portrait;
+  }
+
+  .awb-sheet-landscape {
+    page: awb-print-landscape;
+  }
+
+  .awb-sheet {
+    box-shadow: none !important;
+    margin: 0 !important;
+  }
+
+  .awb-sheet-print {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .awb-sheet-print:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}
+/* Phase 19.2 - traditional print window: a grey canvas, a centred white A4
+   sheet and a compact toolbar. Only the sheet itself reaches paper. */
+.awb-print-canvas {
+  background: #8e8e8e;
+}
+
+@media print {
+  .awb-print-toolbar,
+  .awb-print-rail {
+    display: none !important;
+  }
+
+  .awb-print-canvas,
+  .awb-print-stage {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  .awb-print-canvas > div {
+    display: block !important;
+  }
+
+  .awb-sheet-print {
+    margin: 0 !important;
+  }
+}

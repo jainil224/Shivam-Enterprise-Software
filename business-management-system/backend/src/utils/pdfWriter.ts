@@ -165,6 +165,125 @@ export function fitText(text: string, maxChars: number): string {
   return clean.slice(0, maxChars - 2) + '..';
 }
 
+// ---------------------------------------------------------------------------
+// Helvetica metrics.
+//
+// The traditional account-balance document is set in a sans-serif face, so a
+// string's width must be measured with the real Helvetica advance widths
+// instead of Courier's fixed 0.6 em advance. Without this, right-aligned money
+// would sit left of the column edge and wrapping would be wrong.
+// ---------------------------------------------------------------------------
+
+/** Helvetica advance widths in 1/1000 em for ASCII 32..126. */
+const HELVETICA_WIDTHS: readonly number[] = [
+  278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278,
+  556, 556, 556, 556, 556, 556, 556, 556, 556, 556,
+  278, 278, 584, 584, 584, 556, 1015,
+  667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778, 667,
+  778, 722, 667, 611, 722, 667, 944, 667, 667, 611,
+  278, 278, 278, 469, 556, 333,
+  556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556, 556,
+  556, 333, 500, 278, 556, 500, 722, 500, 500, 500,
+  334, 260, 334, 584,
+];
+
+/** Helvetica-Bold advance widths in 1/1000 em for ASCII 32..126. */
+const HELVETICA_BOLD_WIDTHS: readonly number[] = [
+  278, 333, 474, 556, 556, 889, 722, 238, 333, 333, 389, 584, 278, 333, 278, 278,
+  556, 556, 556, 556, 556, 556, 556, 556, 556, 556,
+  333, 333, 584, 584, 584, 611, 975,
+  722, 722, 722, 722, 667, 611, 778, 722, 278, 556, 722, 611, 833, 722, 778, 667,
+  778, 722, 667, 611, 722, 667, 944, 667, 667, 611,
+  333, 278, 333, 584, 556, 333,
+  556, 611, 556, 611, 556, 333, 611, 611, 278, 278, 556, 278, 889, 611, 611, 611,
+  611, 389, 556, 333, 611, 556, 778, 556, 556, 500,
+  389, 280, 389, 584,
+];
+
+/** Base-14 families this writer can emit. */
+export type PdfFont = 'courier' | 'helvetica';
+
+function helveticaGlyphWidth(code: number, bold: boolean): number {
+  if (code < 32 || code > 126) return 556;
+  return (bold ? HELVETICA_BOLD_WIDTHS : HELVETICA_WIDTHS)[code - 32] ?? 556;
+}
+
+/** Width of `text` in points for the requested base-14 font. */
+export function fontTextWidth(
+  text: string,
+  fontSize: number,
+  font: PdfFont = 'courier',
+  bold = false
+): number {
+  if (font === 'courier') return textWidth(text, fontSize);
+  let units = 0;
+  for (const char of winAnsi(text)) units += helveticaGlyphWidth(char.charCodeAt(0), bold);
+  return (units * fontSize) / 1000;
+}
+
+/**
+ * Wraps text to a real point width using the requested font metrics. A word
+ * wider than the column is broken character by character, so no line can ever
+ * extend beyond its box.
+ */
+export function wrapTextToWidth(
+  text: string,
+  maxWidthPt: number,
+  fontSize: number,
+  font: PdfFont = 'courier',
+  bold = false
+): string[] {
+  const clean = winAnsi(text).trim();
+  if (clean.length === 0) return [''];
+  const limit = Math.max(1, maxWidthPt);
+  const lines: string[] = [];
+  let current = '';
+  for (const word of clean.split(/\s+/)) {
+    if (current.length === 0) {
+      current = word;
+      continue;
+    }
+    const candidate = current + ' ' + word;
+    if (fontTextWidth(candidate, fontSize, font, bold) <= limit) {
+      current = candidate;
+    } else {
+      lines.push(current);
+      current = word;
+    }
+  }
+  if (current.length > 0) lines.push(current);
+  return lines.flatMap((line) => {
+    if (fontTextWidth(line, fontSize, font, bold) <= limit) return [line];
+    const pieces: string[] = [];
+    let buffer = '';
+    for (const char of line) {
+      const candidate = buffer + char;
+      if (buffer.length > 0 && fontTextWidth(candidate, fontSize, font, bold) > limit) {
+        pieces.push(buffer);
+        buffer = char;
+      } else {
+        buffer = candidate;
+      }
+    }
+    if (buffer.length > 0) pieces.push(buffer);
+    return pieces;
+  });
+}
+
+/** Largest font size at or below `size` that keeps `text` inside `maxWidthPt`. */
+export function fitFontSize(
+  text: string,
+  maxWidthPt: number,
+  size: number,
+  font: PdfFont = 'courier',
+  bold = false,
+  minSize = 6
+): number {
+  let current = size;
+  while (current > minSize && fontTextWidth(text, current, font, bold) > maxWidthPt) current -= 0.5;
+  return current;
+}
+
 /**
  * Computes a layout that always fits inside the printable width.
  * Column widths are proportional to the catalogue width hint but never below
@@ -233,6 +352,8 @@ export interface TextOp {
   size?: number;
   /** Renders with Courier-Oblique / Courier-BoldOblique. */
   italic?: boolean;
+  /** Base-14 family. Defaults to Courier, the family of every older statement. */
+  font?: PdfFont;
   /**
    * Explicit fill colour for this text run. Defaults to black. Rects are written
    * before text, so without this every glyph inherits the last rectangle's fill
@@ -282,6 +403,15 @@ export function wrapText(text: string, maxChars: number): string[] {
   });
 }
 
+/** F1..F4 are Courier, F5/F6 are the Helvetica pair used by the print documents. */
+function fontResource(op: TextOp): string {
+  if (op.font === 'helvetica') {
+    if (op.italic) return op.bold ? 'F4' : 'F3';
+    return op.bold ? 'F6' : 'F5';
+  }
+  return op.bold ? (op.italic ? 'F4' : 'F2') : op.italic ? 'F3' : 'F1';
+}
+
 function alignX(cellX: number, width: number, text: string, fontSize: number, align: PdfAlign): number {
   if (align === 'right') return cellX + width - 2 - textWidth(text, fontSize);
   if (align === 'center') return cellX + Math.max(2, (width - textWidth(text, fontSize)) / 2);
@@ -306,7 +436,7 @@ export function buildContentStream(ops: PageOps): string {
     const color = op.color ?? [0, 0, 0];
     parts.push(
       round3(color[0]) + ' ' + round3(color[1]) + ' ' + round3(color[2]) + ' rg ' +
-      'BT /' + (op.bold ? (op.italic ? 'F4' : 'F2') : op.italic ? 'F3' : 'F1') + ' ' + round3(size) + ' Tf 1 0 0 1 ' +
+      'BT /' + fontResource(op) + ' ' + round3(size) + ' Tf 1 0 0 1 ' +
       round3(op.x) + ' ' + round3(op.y) + ' Tm (' + escapePdfText(op.text) + ') Tj ET'
     );
   }
@@ -1067,6 +1197,8 @@ export function serializePdfPages(pages: PageOps[], size: { width: number; heigh
   addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>');
   addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Oblique /Encoding /WinAnsiEncoding >>');
   addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Courier-BoldOblique /Encoding /WinAnsiEncoding >>');
+  addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+  addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
 
   const kids: number[] = [];
   for (const pageOps of pages) {
@@ -1077,7 +1209,7 @@ export function serializePdfPages(pages: PageOps[], size: { width: number; heigh
     );
     objects[pageNumber - 1] =
       '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + round3(size.width) + ' ' + round3(size.height) + '] ' +
-      '/Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> /Contents ' +
+      '/Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R /F5 7 0 R /F6 8 0 R >> >> /Contents ' +
       contentNumber +
       ' 0 R >>';
     kids.push(pageNumber);

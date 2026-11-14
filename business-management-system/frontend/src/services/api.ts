@@ -98,6 +98,13 @@ import type {
   BankBookSavedReportRecord,
 } from '../types/ledgerReports';
 
+import type {
+  AccountWiseBalanceOptions,
+  AccountWiseBalanceQueryRequest,
+  AccountWiseBalanceResult,
+  AccountWiseMonthWiseResult,
+} from '../types/accountWiseBalance';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export const apiClient = axios.create({
@@ -1957,4 +1964,63 @@ export const getReceiptNeighbours = async (id: string): Promise<ReceiptNeighbour
     `/bank-receipts/${id}/neighbours`
   );
   return response.data.data;
+};
+
+// Phase 19 - Account Wise Balance report (read-only, Phase 1)
+export const getAccountWiseBalanceOptions = async (): Promise<AccountWiseBalanceOptions> => {
+  const response = await apiClient.get<ApiResponse<AccountWiseBalanceOptions>>(
+    '/reports/account-wise-balance/options'
+  );
+  return response.data.data;
+};
+
+export const queryAccountWiseBalance = async (
+  payload: AccountWiseBalanceQueryRequest
+): Promise<AccountWiseBalanceResult> => {
+  const response = await apiClient.post<ApiResponse<AccountWiseBalanceResult>>(
+    '/reports/account-wise-balance/query',
+    payload,
+    { timeout: 60000 }
+  );
+  return response.data.data;
+};
+export const queryAccountWiseBalanceMonthWise = async (
+  payload: AccountWiseBalanceQueryRequest
+): Promise<AccountWiseMonthWiseResult> => {
+  const response = await apiClient.post<ApiResponse<AccountWiseMonthWiseResult>>(
+    '/reports/account-wise-balance/month-wise/query',
+    payload,
+    { timeout: 60000 }
+  );
+  return response.data.data;
+};
+
+export const exportAccountWiseBalancePdf = async (
+  payload: AccountWiseBalanceQueryRequest
+): Promise<{ blob: Blob; filename: string }> => {
+  const response = await apiClient.post('/reports/account-wise-balance/export/pdf', payload, {
+    responseType: 'blob',
+    timeout: 180000,
+  });
+  return {
+    blob: response.data as Blob,
+    filename: readDownloadName(response.headers['content-disposition'], 'account-wise-balance.pdf'),
+  };
+};
+
+export const exportAccountWiseBalanceMonthWisePdf = async (
+  payload: AccountWiseBalanceQueryRequest
+): Promise<{ blob: Blob; filename: string }> => {
+  const response = await apiClient.post(
+    '/reports/account-wise-balance/month-wise/export/pdf',
+    payload,
+    { responseType: 'blob', timeout: 180000 }
+  );
+  return {
+    blob: response.data as Blob,
+    filename: readDownloadName(
+      response.headers['content-disposition'],
+      'account-month-wise-balance.pdf'
+    ),
+  };
 };

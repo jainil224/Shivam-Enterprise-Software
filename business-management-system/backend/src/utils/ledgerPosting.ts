@@ -91,7 +91,19 @@ export function parseIsoDate(value: unknown, label: string): Date {
  * never a reversal, never a draft/cancelled document, never a superseded
  * revision.
  */
-export function isEligiblePosting(line: LedgerPostingLine): boolean {
+export interface PostingEligibilityFields {
+  isReversal: boolean;
+  revision: number;
+  voucher: { status: string; revision: number } | null;
+  debitNote: { status: string; revision: number } | null;
+}
+
+/**
+ * Single authoritative eligibility rule. Balance reports that read many
+ * accounts at once select only these fields, so the rule is reused instead of
+ * being copied into each report.
+ */
+export function isEligiblePostingFields(line: PostingEligibilityFields): boolean {
   if (line.isReversal) return false;
   if (line.voucher) {
     return line.voucher.status === 'POSTED' && line.voucher.revision === line.revision;
@@ -100,6 +112,10 @@ export function isEligiblePosting(line: LedgerPostingLine): boolean {
     return line.debitNote.status === 'POSTED' && line.debitNote.revision === line.revision;
   }
   return false;
+}
+
+export function isEligiblePosting(line: LedgerPostingLine): boolean {
+  return isEligiblePostingFields(line);
 }
 
 export function sourceTypeOf(line: LedgerPostingLine): LedgerSourceType {
