@@ -134,7 +134,7 @@ Here is a preview of the core user interface and daily operational workflows:
 
 ---
 
-### 9. Bank Receipt Entry / Cheque Receipt (Phase 18)
+### 9. Bank Receipt Entry / Cheque Receipt 
 
 ![Cheque Receipt Book Selection](business-management-system/documentation/screenshots/phase18/p18_01_book_selection.png)
 
@@ -162,7 +162,7 @@ Here is a preview of the core user interface and daily operational workflows:
 
 ---
 
-### 10. WhatsApp Integration - Send ERP PDFs on WhatsApp (Phase 19.3)
+### 10. WhatsApp Integration - Send ERP PDFs on WhatsApp 
 
 ![WhatsApp Integration Settings](business-management-system/documentation/screenshots/phase19/p193-settings-desktop.png)
 
