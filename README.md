@@ -4,7 +4,7 @@
 > Specially engineered for Indian textile manufacturing, weaving, and trading operations.  
 > Designed for seamless on-premises operation on Windows 10 (AMD E2-9000, 4 GB RAM) with LAN multi-workstation capability and zero cloud dependency.
 
--------
+---
 
 ## Software Visual Tour
 
